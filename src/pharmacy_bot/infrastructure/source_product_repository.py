@@ -15,6 +15,7 @@ from pharmacy_bot.domain.source_product import (
     SourceProductPage,
     SourceProductStatus,
 )
+from pharmacy_bot.domain.source_revalidation import MonitoringEligibility
 from pharmacy_bot.infrastructure.models import (
     SourceProductModel,
     SourceProductVersionModel,
@@ -37,6 +38,9 @@ class SqlAlchemySourceProductRepository:
                 .values(
                     **self._input_values(value),
                     version=1,
+                    monitoring_eligibility=MonitoringEligibility.PENDING_REVALIDATION.value,
+                    last_revalidated_version=0,
+                    fresh_check_required=False,
                     first_seen_at=now,
                     last_seen_at=now,
                     updated_at=now,
@@ -59,11 +63,17 @@ class SqlAlchemySourceProductRepository:
                 raise RuntimeError("source product was not created or found")
             if created:
                 self._add_history(session, model, ("created",), now=now)
-            elif model.semantic_fingerprint != value.semantic_fingerprint:
+            elif (
+                model.semantic_fingerprint != value.semantic_fingerprint and now >= model.updated_at
+            ):
                 changed_fields = self._changed_fields(model, value)
                 for key, new_value in self._input_values(value).items():
                     setattr(model, key, new_value)
                 model.version += 1
+                model.monitoring_eligibility = MonitoringEligibility.PENDING_REVALIDATION.value
+                model.quarantine_reason = None
+                model.quarantined_at = None
+                model.fresh_check_required = False
                 model.last_seen_at = max(model.last_seen_at, now)
                 model.updated_at = now
                 self._add_history(session, model, changed_fields, now=now)
