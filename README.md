@@ -53,6 +53,10 @@ Story [#82](https://github.com/olegnysss/pharmacy_notify_bot/issues/82) ввод
 `Pharmacy` и версионированные `SourcePharmacy`. Дедупликация учитывает сеть, адрес, координаты
 и trusted ID, сомнительные связи требуют операторского решения, а radius search исключает
 точки без координат и использует стабильный cursor `(distance, pharmacy_id)`.
+Story [#83](https://github.com/olegnysss/pharmacy_notify_bot/issues/83) разделяет физический
+остаток, самовывоз, доставку и неизвестную online-доступность. Ссылки типа защищены domain-
+инвариантами и CHECK constraint, delivery не проходит radius/pharmacy-list scope, а безопасные
+presentation DTO явно говорят, когда источник не подтверждает остаток в физической аптеке.
 
 Команды личного чата:
 
