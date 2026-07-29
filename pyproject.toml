@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pharmacy-notify-bot"
+version = "0.1.0"
+description = "Telegram bot that notifies users when pharmacy products become available"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiogram>=3.28,<4",
+    "alembic>=1.16,<2",
+    "asyncpg>=0.30,<1",
+    "pydantic-settings>=2.10,<3",
+    "sqlalchemy[asyncio]>=2.0.51,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "aiosqlite>=0.21,<1",
+    "mypy>=1.17,<2",
+    "pytest>=8.4,<9",
+    "pytest-asyncio>=1.1,<2",
+    "ruff>=0.12,<1",
+]
+
+[project.scripts]
+pharmacy-bot = "pharmacy_bot.main:run"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pharmacy_bot"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "integration: requires an external service such as PostgreSQL",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "RUF"]
+ignore = ["RUF001"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["pharmacy_bot"]
+mypy_path = "src"
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["alembic.*"]
+ignore_missing_imports = true

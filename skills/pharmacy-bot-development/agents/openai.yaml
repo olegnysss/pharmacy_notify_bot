@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pharmacy Bot Development"
+  short_description: "Develop the pharmacy notification bot safely"
+  default_prompt: "Use $pharmacy-bot-development to implement the next project issue consistently."
