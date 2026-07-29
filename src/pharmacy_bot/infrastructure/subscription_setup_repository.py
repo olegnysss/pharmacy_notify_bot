@@ -163,6 +163,8 @@ class SqlAlchemySubscriptionSetupRepository:
                 **self._product_values(self._product_snapshot(model)),
                 canonical_product_id=model.canonical_product_id,
                 canonical_product_version=model.canonical_product_version,
+                location_scope_id=model.location_scope_id,
+                location_scope_version=model.location_scope_version,
                 location_kind=location.kind.value,
                 location_key=location.key,
                 location_display_name=location.display_name,
@@ -202,6 +204,8 @@ class SqlAlchemySubscriptionSetupRepository:
         model.location_mode = None
         model.canonical_product_id = None
         model.canonical_product_version = None
+        model.location_scope_id = None
+        model.location_scope_version = None
         model.location_candidates = []
         model.location = None
         model.radius_meters = None
