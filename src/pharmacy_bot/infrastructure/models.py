@@ -898,6 +898,127 @@ class AdapterIngestionReceiptModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class WebhookReceiptModel(Base):
+    __tablename__ = "webhook_receipts"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_id",
+            "delivery_key",
+            name="uq_webhook_receipts_source_delivery",
+        ),
+        CheckConstraint(
+            "status IN ('processing', 'accepted', 'quarantined')",
+            name="ck_webhook_receipts_status",
+        ),
+        CheckConstraint("body_bytes >= 0", name="ck_webhook_receipts_body_bytes"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("sources.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    delivery_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    body_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    event_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    body_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    business_fingerprint: Mapped[str | None] = mapped_column(String(64))
+    quarantine_reason: Mapped[str | None] = mapped_column(String(64))
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class IntegrationRequestModel(Base):
+    __tablename__ = "integration_requests"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_id",
+            "correlation_id",
+            name="uq_integration_requests_source_correlation",
+        ),
+        CheckConstraint(
+            "outcome IN ('success', 'client_failure', 'upstream_failure', "
+            "'network_failure', 'contract_failure', 'policy_rejection')",
+            name="ck_integration_requests_outcome",
+        ),
+        CheckConstraint(
+            "duration_ms >= 0 AND attempts > 0 AND response_bytes >= 0",
+            name="ck_integration_requests_metrics",
+        ),
+        CheckConstraint(
+            "cache_status IS NULL OR cache_status IN ('fresh', 'stale', 'miss')",
+            name="ck_integration_requests_cache_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("sources.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    correlation_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    operation: Mapped[str] = mapped_column(String(32), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False)
+    response_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    http_status: Mapped[int | None] = mapped_column(Integer)
+    cache_status: Mapped[str | None] = mapped_column(String(16))
+    failure_code: Mapped[str | None] = mapped_column(String(64))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class SourceHealthModel(Base):
+    __tablename__ = "source_health"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('healthy', 'degraded')",
+            name="ck_source_health_status",
+        ),
+        CheckConstraint(
+            "consecutive_failures >= 0 AND consecutive_successes >= 0 AND version > 0",
+            name="ck_source_health_counters",
+        ),
+    )
+
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("sources.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    consecutive_failures: Mapped[int] = mapped_column(Integer, nullable=False)
+    consecutive_successes: Mapped[int] = mapped_column(Integer, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class SourceHealthEventModel(Base):
+    __tablename__ = "source_health_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_id",
+            "version",
+            name="uq_source_health_events_source_version",
+        ),
+        CheckConstraint(
+            "status IN ('healthy', 'degraded')",
+            name="ck_source_health_events_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("sources.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    reason_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class ProductSelectionDraftModel(Base):
     __tablename__ = "product_selection_drafts"
 

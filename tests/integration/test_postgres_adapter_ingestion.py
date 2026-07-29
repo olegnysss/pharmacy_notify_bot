@@ -39,8 +39,12 @@ from pharmacy_bot.infrastructure.adapter_ingestion_repository import (
 from pharmacy_bot.infrastructure.database import create_engine, create_session_factory
 from pharmacy_bot.infrastructure.models import (
     AdapterIngestionReceiptModel,
+    IntegrationRequestModel,
+    SourceHealthEventModel,
+    SourceHealthModel,
     SourceModel,
     SourceVersionModel,
+    WebhookReceiptModel,
 )
 from pharmacy_bot.infrastructure.source_registry_repository import (
     SqlAlchemySourceRegistryRepository,
@@ -140,6 +144,10 @@ async def test_concurrent_ingestion_creates_one_receipt_and_retry_returns_it(
     now = datetime(2026, 7, 29, 18, tzinfo=UTC)
     try:
         async with session_factory.begin() as session:
+            await session.execute(delete(SourceHealthEventModel))
+            await session.execute(delete(SourceHealthModel))
+            await session.execute(delete(IntegrationRequestModel))
+            await session.execute(delete(WebhookReceiptModel))
             await session.execute(delete(AdapterIngestionReceiptModel))
             await session.execute(delete(SourceVersionModel))
             await session.execute(delete(SourceModel))
@@ -208,6 +216,10 @@ async def test_concurrent_ingestion_creates_one_receipt_and_retry_returns_it(
         assert model.correlation_id == first.correlation_id
     finally:
         async with session_factory.begin() as session:
+            await session.execute(delete(SourceHealthEventModel))
+            await session.execute(delete(SourceHealthModel))
+            await session.execute(delete(IntegrationRequestModel))
+            await session.execute(delete(WebhookReceiptModel))
             await session.execute(delete(AdapterIngestionReceiptModel))
             await session.execute(delete(SourceVersionModel))
             await session.execute(delete(SourceModel))

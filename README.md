@@ -74,6 +74,13 @@ DTO сохраняют отсутствующие значения как `unkno
 результат с source/adapter/contract/schema provenance. Строгий codec отклоняет неизвестные
 поля, а PostgreSQL receipt делает ingestion атомарным и идемпотентным по бизнес-запросу,
 не смешивая его fingerprint с correlation/causation IDs.
+Story [#103](https://github.com/olegnysss/pharmacy_notify_bot/issues/103) добавляет безопасный
+push-контур: HMAC проверяется constant-time вместе с timestamp window до бизнес-парсинга,
+duplicate delivery создаёт один receipt, а несовместимый аутентифицированный event
+карантинится без сохранения raw body или secret. Namespaced cache разделяет source, operation,
+region, user scope, schema и adapter version и не возвращает stale/corrupted payload.
+Безопасные IntegrationRequest metrics дедуплицируются, имеют bounded retention и независимо
+переводят каждый source между `healthy` и `degraded`.
 
 Команды личного чата:
 
