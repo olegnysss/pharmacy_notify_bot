@@ -307,6 +307,63 @@ class ProductAttributeProvenanceModel(Base):
     data_version: Mapped[str] = mapped_column(String(128), nullable=False)
 
 
+class SourceProductModel(Base):
+    __tablename__ = "source_products"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_code",
+            "external_id",
+            name="uq_source_products_source_external",
+        ),
+        CheckConstraint("version > 0", name="ck_source_products_version_positive"),
+        CheckConstraint(
+            "status IN ('active', 'discontinued', 'unavailable')",
+            name="ck_source_products_status",
+        ),
+        Index("ix_source_products_search", "id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    external_id: Mapped[str] = mapped_column(String(256), nullable=False)
+    canonical_url: Mapped[str] = mapped_column(String(2048), nullable=False)
+    raw_name: Mapped[str] = mapped_column(String(512), nullable=False)
+    parsed_attributes: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    semantic_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    search_document: Mapped[str] = mapped_column(String(2048), nullable=False)
+    canonical_product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("canonical_products.id", ondelete="SET NULL"),
+    )
+    canonical_product_version: Mapped[int | None] = mapped_column(Integer)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class SourceProductVersionModel(Base):
+    __tablename__ = "source_product_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_product_id",
+            "version",
+            name="uq_source_product_versions_product_version",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source_product_id: Mapped[int] = mapped_column(
+        ForeignKey("source_products.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    semantic_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    changed_fields: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    safe_snapshot: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class ProductSelectionDraftModel(Base):
     __tablename__ = "product_selection_drafts"
 
