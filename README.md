@@ -33,6 +33,10 @@ Story [#64](https://github.com/olegnysss/pharmacy_notify_bot/issues/64) доба
 карточки предложений источников: устойчивый ключ `source_code/external_id`, allowlist URL,
 ограниченный типизированный payload, семантический fingerprint, append-only историю изменений
 и стабильную пагинацию поиска с формой, дозировкой и упаковкой.
+Story [#68](https://github.com/olegnysss/pharmacy_notify_bot/issues/68) добавляет объяснимый
+matching: critical mismatch проверяется до scoring и trusted ID, а `probable`/`candidate`
+не разрешают автоматическое событие без активного подтверждения. Подтверждения ограничены
+user/source/global scope, защищены idempotency key и отзываются без удаления аудита.
 
 Команды личного чата:
 

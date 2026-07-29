@@ -364,6 +364,68 @@ class SourceProductVersionModel(Base):
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class MappingDecisionModel(Base):
+    __tablename__ = "mapping_decisions"
+    __table_args__ = (
+        UniqueConstraint(
+            "actor_type",
+            "actor_internal_id",
+            "idempotency_key",
+            name="uq_mapping_decisions_actor_idempotency",
+        ),
+        CheckConstraint("version > 0", name="ck_mapping_decisions_version_positive"),
+        CheckConstraint(
+            "actor_type IN ('user', 'operator')",
+            name="ck_mapping_decisions_actor_type",
+        ),
+        CheckConstraint(
+            "scope IN ('user', 'source', 'global')",
+            name="ck_mapping_decisions_scope",
+        ),
+        CheckConstraint(
+            "status IN ('active', 'revoked')",
+            name="ck_mapping_decisions_status",
+        ),
+        CheckConstraint(
+            "(scope = 'user' AND scope_user_id IS NOT NULL) "
+            "OR (scope <> 'user' AND scope_user_id IS NULL)",
+            name="ck_mapping_decisions_scope_user",
+        ),
+        Index(
+            "ix_mapping_decisions_active_lookup",
+            "source_product_id",
+            "canonical_product_id",
+            "status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source_product_id: Mapped[int] = mapped_column(
+        ForeignKey("source_products.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    canonical_product_id: Mapped[int] = mapped_column(
+        ForeignKey("canonical_products.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    canonical_product_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    actor_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    actor_internal_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    scope: Mapped[str] = mapped_column(String(16), nullable=False)
+    scope_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+    )
+    source_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    reason_code: Mapped[str] = mapped_column(String(128), nullable=False)
+    algorithm_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class ProductSelectionDraftModel(Base):
     __tablename__ = "product_selection_drafts"
 
