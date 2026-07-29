@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 from datetime import datetime, time
+from decimal import Decimal
 
 from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Time,
     UniqueConstraint,
@@ -169,6 +172,141 @@ class ConsentDecisionModel(Base):
     user: Mapped[UserModel] = relationship(back_populates="consent_decisions")
 
 
+class CanonicalProductModel(Base):
+    __tablename__ = "canonical_products"
+    __table_args__ = (
+        UniqueConstraint("critical_signature", name="uq_canonical_products_signature"),
+        CheckConstraint("version > 0", name="ck_canonical_products_version_positive"),
+        CheckConstraint(
+            "package_count IS NULL OR package_count > 0",
+            name="ck_canonical_products_package_count_positive",
+        ),
+        CheckConstraint(
+            "kind IN ('medicine', 'other')",
+            name="ck_canonical_products_kind",
+        ),
+        CheckConstraint(
+            "quality IN ('partial', 'verified', 'retired')",
+            name="ck_canonical_products_quality",
+        ),
+        CheckConstraint(
+            "dosage_value IS NULL OR dosage_value > 0",
+            name="ck_canonical_products_dosage_positive",
+        ),
+        CheckConstraint(
+            "concentration_numerator_value IS NULL OR concentration_numerator_value > 0",
+            name="ck_canonical_products_concentration_numerator_positive",
+        ),
+        CheckConstraint(
+            "concentration_denominator_value IS NULL OR concentration_denominator_value > 0",
+            name="ck_canonical_products_concentration_denominator_positive",
+        ),
+        CheckConstraint(
+            "volume_value IS NULL OR volume_value > 0",
+            name="ck_canonical_products_volume_positive",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    quality: Mapped[str] = mapped_column(String(32), nullable=False)
+    critical_signature: Mapped[str] = mapped_column(String(64), nullable=False)
+    trade_name_raw: Mapped[str] = mapped_column(String(512), nullable=False)
+    trade_name_normalized: Mapped[str] = mapped_column(String(512), nullable=False)
+    active_ingredient_raw: Mapped[str | None] = mapped_column(String(512))
+    active_ingredient_normalized: Mapped[str | None] = mapped_column(String(512))
+    manufacturer_raw: Mapped[str | None] = mapped_column(String(512))
+    manufacturer_normalized: Mapped[str | None] = mapped_column(String(512))
+    form_raw: Mapped[str | None] = mapped_column(String(128))
+    form_normalized: Mapped[str | None] = mapped_column(String(128))
+    dosage_value: Mapped[Decimal | None] = mapped_column(Numeric(24, 9))
+    dosage_unit: Mapped[str | None] = mapped_column(String(16))
+    dosage_dimension: Mapped[str | None] = mapped_column(String(16))
+    concentration_numerator_value: Mapped[Decimal | None] = mapped_column(Numeric(24, 9))
+    concentration_numerator_unit: Mapped[str | None] = mapped_column(String(16))
+    concentration_numerator_dimension: Mapped[str | None] = mapped_column(String(16))
+    concentration_denominator_value: Mapped[Decimal | None] = mapped_column(Numeric(24, 9))
+    concentration_denominator_unit: Mapped[str | None] = mapped_column(String(16))
+    concentration_denominator_dimension: Mapped[str | None] = mapped_column(String(16))
+    package_count: Mapped[int | None] = mapped_column(Integer)
+    volume_value: Mapped[Decimal | None] = mapped_column(Numeric(24, 9))
+    volume_unit: Mapped[str | None] = mapped_column(String(16))
+    volume_dimension: Mapped[str | None] = mapped_column(String(16))
+    route_raw: Mapped[str | None] = mapped_column(String(128))
+    route_normalized: Mapped[str | None] = mapped_column(String(128))
+    package_variant_raw: Mapped[str | None] = mapped_column(String(256))
+    package_variant_normalized: Mapped[str | None] = mapped_column(String(256))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class ProductIdentifierModel(Base):
+    __tablename__ = "product_identifiers"
+    __table_args__ = (
+        UniqueConstraint("namespace", "value", name="uq_product_identifiers_namespace_value"),
+        Index("ix_product_identifiers_product_status", "product_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("canonical_products.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    namespace: Mapped[str] = mapped_column(String(64), nullable=False)
+    value: Mapped[str] = mapped_column(String(256), nullable=False)
+    issuer: Mapped[str] = mapped_column(String(256), nullable=False)
+    trust: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class CanonicalProductVersionModel(Base):
+    __tablename__ = "canonical_product_versions"
+    __table_args__ = (
+        UniqueConstraint("product_id", "version", name="uq_product_versions_product_version"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("canonical_products.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    identity_snapshot: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    critical_signature: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ProductAttributeProvenanceModel(Base):
+    __tablename__ = "product_attribute_provenance"
+    __table_args__ = (Index("ix_product_provenance_product_field", "product_id", "field_name"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("canonical_products.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    product_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    field_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_kind: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_reference: Mapped[str] = mapped_column(String(256), nullable=False)
+    raw_value: Mapped[str | None] = mapped_column(String(1024))
+    normalized_value: Mapped[str | None] = mapped_column(String(1024))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    data_version: Mapped[str] = mapped_column(String(128), nullable=False)
+
+
 class ProductSelectionDraftModel(Base):
     __tablename__ = "product_selection_drafts"
 
@@ -267,6 +405,10 @@ class SubscriptionSetupDraftModel(Base):
     product_package: Mapped[str | None] = mapped_column(String(128))
     product_manufacturer: Mapped[str | None] = mapped_column(String(256))
     product_source_host: Mapped[str | None] = mapped_column(String(255))
+    canonical_product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("canonical_products.id", ondelete="SET NULL"),
+    )
+    canonical_product_version: Mapped[int | None] = mapped_column(Integer)
     location_mode: Mapped[str | None] = mapped_column(String(32))
     location_candidates: Mapped[list[dict[str, object]]] = mapped_column(
         JSON,
@@ -328,6 +470,10 @@ class SubscriptionModel(Base):
     product_package: Mapped[str | None] = mapped_column(String(128))
     product_manufacturer: Mapped[str | None] = mapped_column(String(256))
     product_source_host: Mapped[str | None] = mapped_column(String(255))
+    canonical_product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("canonical_products.id", ondelete="SET NULL"),
+    )
+    canonical_product_version: Mapped[int | None] = mapped_column(Integer)
     location_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     location_key: Mapped[str] = mapped_column(String(256), nullable=False)
     location_display_name: Mapped[str] = mapped_column(String(512), nullable=False)
