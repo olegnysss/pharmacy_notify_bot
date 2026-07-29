@@ -41,3 +41,21 @@ def test_database_url_must_use_async_postgresql_driver() -> None:
 
     with pytest.raises(ValidationError):
         Settings(**data)
+
+
+def test_product_query_minimum_cannot_exceed_maximum() -> None:
+    data = settings_data()
+    data["product_query_min_length"] = "20"
+    data["product_query_max_length"] = "16"
+
+    with pytest.raises(ValidationError, match="minimum cannot exceed maximum"):
+        Settings(**data)
+
+
+def test_supported_product_hosts_are_normalized_from_configuration() -> None:
+    data = settings_data()
+    data["supported_product_hosts"] = " SHOP.EXAMPLE., second.example "
+
+    settings = Settings(**data)
+
+    assert settings.product_hosts() == ("shop.example", "second.example")

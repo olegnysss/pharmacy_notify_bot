@@ -117,7 +117,11 @@ async def enter_subscription_flow(
     target = (
         NavigationTarget.ADD_SUBSCRIPTION
         if callback_data.action == "start"
-        else NavigationTarget.UNKNOWN
+        else (
+            NavigationTarget.LOCATION
+            if callback_data.action == "configure"
+            else NavigationTarget.UNKNOWN
+        )
     )
     await _edit_navigation(callback, navigation_service, target)
 
