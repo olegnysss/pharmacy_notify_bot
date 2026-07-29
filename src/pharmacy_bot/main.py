@@ -8,6 +8,8 @@ from datetime import timedelta
 from aiogram import Bot, Dispatcher
 from aiogram.client.session.aiohttp import AiohttpSession
 
+from pharmacy_bot.application.dialog_recovery import DialogRecoveryService
+from pharmacy_bot.application.localization import Translator
 from pharmacy_bot.application.navigation import NavigationService
 from pharmacy_bot.application.onboarding import OnboardingService
 from pharmacy_bot.application.product_selection import ProductSelectionService
@@ -18,6 +20,10 @@ from pharmacy_bot.application.user_settings import UserSettingsService
 from pharmacy_bot.config import get_settings
 from pharmacy_bot.domain.user_settings import ServiceLimits
 from pharmacy_bot.infrastructure.database import create_engine, create_session_factory
+from pharmacy_bot.infrastructure.dialog_repository import (
+    SqlAlchemyDialogRecoveryRepository,
+    SqlAlchemyUpdateReceiptRepository,
+)
 from pharmacy_bot.infrastructure.manual_check_scheduler import (
     DemoManualCheckScheduler,
     UnavailableManualCheckScheduler,
@@ -53,6 +59,7 @@ from pharmacy_bot.infrastructure.user_settings_repository import (
     SqlAlchemyUserSettingsRepository,
 )
 from pharmacy_bot.presentation.lifecycle_router import router as lifecycle_router
+from pharmacy_bot.presentation.middleware import ReliableUpdateMiddleware
 from pharmacy_bot.presentation.navigation_router import (
     configure_private_commands,
 )
@@ -137,6 +144,11 @@ async def main() -> None:
         source_capabilities,
         service_limits,
         max_points_per_message=settings.max_points_per_notification,
+        editor_ttl=timedelta(seconds=settings.setup_draft_ttl_seconds),
+    )
+    dialog_recovery_service = DialogRecoveryService(
+        onboarding_service,
+        SqlAlchemyDialogRecoveryRepository(session_factory),
     )
     subscription_setup_service = SubscriptionSetupService(
         onboarding_service,
@@ -176,6 +188,13 @@ async def main() -> None:
     )
 
     dispatcher = Dispatcher()
+    dispatcher.update.outer_middleware(
+        ReliableUpdateMiddleware(
+            SqlAlchemyUpdateReceiptRepository(session_factory),
+            Translator(),
+            lease=timedelta(seconds=settings.telegram_update_lease_seconds),
+        )
+    )
     dispatcher.include_router(onboarding_router)
     dispatcher.include_router(product_selection_router)
     dispatcher.include_router(subscription_setup_router)
@@ -202,6 +221,7 @@ async def main() -> None:
             subscription_query_service=subscription_query_service,
             subscription_lifecycle_service=subscription_lifecycle_service,
             user_settings_service=user_settings_service,
+            dialog_recovery_service=dialog_recovery_service,
             allowed_updates=dispatcher.resolve_used_update_types(),
         )
     finally:

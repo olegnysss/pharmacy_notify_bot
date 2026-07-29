@@ -7,6 +7,7 @@ from aiogram.enums import ChatType
 from aiogram.filters import CommandStart
 from aiogram.types import CallbackQuery, Message, User
 
+from pharmacy_bot.application.dialog_recovery import DialogRecoveryService
 from pharmacy_bot.application.onboarding import OnboardingResult, OnboardingService
 from pharmacy_bot.domain.onboarding import TelegramIdentity
 from pharmacy_bot.presentation.callbacks import OnboardingCallback
@@ -27,13 +28,21 @@ def identity_from_telegram(user: User, chat_id: int) -> TelegramIdentity:
 async def start_onboarding(
     message: Message,
     onboarding_service: OnboardingService,
+    dialog_recovery_service: DialogRecoveryService | None = None,
 ) -> None:
     if message.from_user is None:
         return
     result = await onboarding_service.start(
         identity_from_telegram(message.from_user, message.chat.id)
     )
-    rendered = render_onboarding(result)
+    recovery = (
+        await dialog_recovery_service.inspect(
+            identity_from_telegram(message.from_user, message.chat.id)
+        )
+        if dialog_recovery_service
+        else None
+    )
+    rendered = render_onboarding(result, recovery)
     await message.answer(rendered.text, reply_markup=rendered.reply_markup)
 
 

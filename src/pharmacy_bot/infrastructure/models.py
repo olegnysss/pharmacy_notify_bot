@@ -79,6 +79,12 @@ class UserPreferencesModel(Base):
         unique=True,
     )
     generation: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    editor_schema_version: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+        server_default="1",
+    )
     language: Mapped[str] = mapped_column(String(16), nullable=False, default="ru")
     timezone_name: Mapped[str] = mapped_column(
         String(64),
@@ -120,6 +126,7 @@ class UserPreferencesModel(Base):
         nullable=False,
         default=list,
     )
+    editor_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -172,6 +179,12 @@ class ProductSelectionDraftModel(Base):
         unique=True,
     )
     generation: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    schema_version: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+        server_default="1",
+    )
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     input_mode: Mapped[str | None] = mapped_column(String(16))
     query_text: Mapped[str | None] = mapped_column(String(4096))
@@ -239,6 +252,12 @@ class SubscriptionSetupDraftModel(Base):
         unique=True,
     )
     generation: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    schema_version: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+        server_default="1",
+    )
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     product_candidate_key: Mapped[str] = mapped_column(String(256), nullable=False)
     product_version: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -369,6 +388,12 @@ class SubscriptionEditDraftModel(Base):
         nullable=False,
     )
     generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    schema_version: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+        server_default="1",
+    )
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     base_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     location_mode: Mapped[str | None] = mapped_column(String(32))
@@ -422,3 +447,25 @@ class AuditLogModel(Base):
     action: Mapped[str] = mapped_column(String(64), nullable=False)
     metadata_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class TelegramUpdateReceiptModel(Base):
+    __tablename__ = "telegram_update_receipts"
+
+    update_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    lease_until: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_id: Mapped[str | None] = mapped_column(String(36))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )

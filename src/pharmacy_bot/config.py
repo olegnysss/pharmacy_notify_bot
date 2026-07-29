@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     max_active_subscriptions: int = Field(default=20, ge=1, le=1000)
     max_sources_per_subscription: int = Field(default=10, ge=1, le=100)
     max_points_per_notification: int = Field(default=20, ge=1, le=100)
+    telegram_update_lease_seconds: int = Field(default=120, ge=10, le=3600)
 
     @field_validator("terms_url", "privacy_url")
     @classmethod

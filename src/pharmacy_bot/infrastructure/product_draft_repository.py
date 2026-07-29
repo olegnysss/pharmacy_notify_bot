@@ -284,6 +284,7 @@ class SqlAlchemyProductDraftRepository:
             .values(
                 user_id=user_id,
                 generation=1,
+                schema_version=1,
                 status=ProductDraftStatus.CHOOSE_METHOD.value,
                 expires_at=expires_at,
             )
@@ -305,6 +306,7 @@ class SqlAlchemyProductDraftRepository:
     ) -> None:
         await self._clear_candidates(session, draft)
         draft.generation += 1
+        draft.schema_version = 1
         draft.status = status.value
         draft.input_mode = None
         draft.query_text = None

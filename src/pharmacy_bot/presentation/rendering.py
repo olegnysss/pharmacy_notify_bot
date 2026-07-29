@@ -4,8 +4,11 @@ from dataclasses import dataclass
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+from pharmacy_bot.application.localization import MessageKey, Translator
 from pharmacy_bot.application.onboarding import OnboardingResult, OnboardingView
+from pharmacy_bot.domain.dialog import DialogRecovery, DialogScenario, RecoveryState
 from pharmacy_bot.presentation.callbacks import (
+    LifecycleCallback,
     NavigationCallback,
     OnboardingCallback,
     SubscriptionCallback,
@@ -18,9 +21,12 @@ class RenderedMessage:
     reply_markup: InlineKeyboardMarkup
 
 
-def main_menu_markup() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
+def main_menu_markup(recovery: DialogRecovery | None = None) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if recovery and recovery.state is RecoveryState.ACTIVE and recovery.scenario:
+        rows.append([_recovery_button(recovery)])
+    rows.extend(
+        [
             [
                 InlineKeyboardButton(
                     text="Добавить товар",
@@ -59,15 +65,22 @@ def main_menu_markup() -> InlineKeyboardMarkup:
             ],
         ]
     )
+    return InlineKeyboardMarkup(
+        inline_keyboard=rows,
+    )
 
 
-def render_onboarding(result: OnboardingResult) -> RenderedMessage:
+def render_onboarding(
+    result: OnboardingResult,
+    recovery: DialogRecovery | None = None,
+) -> RenderedMessage:
+    if result.view is OnboardingView.MAIN_MENU:
+        return _render_main_menu(result, recovery)
     renderers = {
         OnboardingView.WELCOME: _render_welcome,
         OnboardingView.CONSENT_REQUIRED: _render_consent,
         OnboardingView.COMPLETED: _render_completed,
         OnboardingView.DECLINED: _render_declined,
-        OnboardingView.MAIN_MENU: _render_main_menu,
     }
     return renderers[result.view](result)
 
@@ -248,12 +261,53 @@ def _render_declined(result: OnboardingResult) -> RenderedMessage:
     )
 
 
-def _render_main_menu(result: OnboardingResult) -> RenderedMessage:
+def _render_main_menu(
+    result: OnboardingResult,
+    recovery: DialogRecovery | None = None,
+) -> RenderedMessage:
+    recovery_text = ""
+    if recovery and recovery.state in {RecoveryState.ACTIVE, RecoveryState.RESET}:
+        key = (
+            MessageKey.RECOVERY_ACTIVE
+            if recovery.state is RecoveryState.ACTIVE
+            else MessageKey.RECOVERY_RESET
+        )
+        recovery_text = "\n\n" + Translator().text(
+            key,
+            result.user.identity.language_code,
+        )
     return RenderedMessage(
         text=(
             "Главное меню\n\n"
             "Выберите действие. Бот сообщает данные аптечных источников, "
-            "но не гарантирует фактическое наличие товара."
+            f"но не гарантирует фактическое наличие товара.{recovery_text}"
         ),
-        reply_markup=main_menu_markup(),
+        reply_markup=main_menu_markup(recovery),
+    )
+
+
+def _recovery_button(recovery: DialogRecovery) -> InlineKeyboardButton:
+    if recovery.scenario is DialogScenario.PRODUCT_SELECTION:
+        return InlineKeyboardButton(
+            text="Продолжить выбор товара",
+            callback_data=SubscriptionCallback(action="start").pack(),
+        )
+    if recovery.scenario is DialogScenario.SUBSCRIPTION_SETUP:
+        return InlineKeyboardButton(
+            text="Продолжить настройку подписки",
+            callback_data=SubscriptionCallback(action="configure").pack(),
+        )
+    if recovery.scenario is DialogScenario.SUBSCRIPTION_EDIT and recovery.subscription_id:
+        return InlineKeyboardButton(
+            text="Продолжить изменение подписки",
+            callback_data=LifecycleCallback(
+                action="edit",
+                subscription_id=recovery.subscription_id,
+                generation=0,
+                value=0,
+            ).pack(),
+        )
+    return InlineKeyboardButton(
+        text="Продолжить настройку профиля",
+        callback_data=NavigationCallback(action="settings").pack(),
     )

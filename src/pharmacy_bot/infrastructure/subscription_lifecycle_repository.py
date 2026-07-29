@@ -90,6 +90,7 @@ class SqlAlchemySubscriptionLifecycleRepository:
                     user_id=user_id,
                     subscription_id=subscription.id,
                     generation=1,
+                    schema_version=1,
                     status=EditStatus.CHOOSE_BLOCK.value,
                     base_updated_at=subscription.updated_at or subscription.created_at,
                     location_candidates=[],
@@ -381,6 +382,7 @@ class SqlAlchemySubscriptionLifecycleRepository:
     ) -> None:
         model.subscription_id = subscription.id
         model.generation += 1
+        model.schema_version = 1
         model.status = EditStatus.CHOOSE_BLOCK.value
         model.base_updated_at = subscription.updated_at or subscription.created_at
         model.location_mode = None
