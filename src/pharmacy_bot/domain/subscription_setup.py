@@ -134,3 +134,11 @@ class Subscription:
     status: SubscriptionStatus
     availability_state: AvailabilityState
     created_at: datetime
+    updated_at: datetime | None = None
+    state_updated_at: datetime | None = None
+    last_successful_check_at: datetime | None = None
+    freshness_expires_at: datetime | None = None
+    state_source_name: str | None = None
+    has_partial_source_error: bool = False
+    manual_check_in_progress: bool = False
+    next_manual_check_at: datetime | None = None

@@ -250,6 +250,21 @@ class SubscriptionModel(Base):
     ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     availability_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    state_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_successful_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    freshness_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    state_source_name: Mapped[str | None] = mapped_column(String(128))
+    has_partial_source_error: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+    manual_check_in_progress: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+    next_manual_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
