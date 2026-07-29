@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     location_input_max_length: int = Field(default=256, ge=16, le=512)
     monitoring_min_radius_meters: int = Field(default=1000, ge=100, le=100000)
     monitoring_max_radius_meters: int = Field(default=25000, ge=1000, le=500000)
+    subscription_results_page_size: int = Field(default=5, ge=1, le=8)
+    manual_check_cooldown_seconds: int = Field(default=300, ge=30, le=86400)
 
     @field_validator("terms_url", "privacy_url")
     @classmethod

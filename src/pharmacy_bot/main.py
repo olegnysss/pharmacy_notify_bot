@@ -12,8 +12,13 @@ from pharmacy_bot.application.navigation import NavigationService
 from pharmacy_bot.application.onboarding import OnboardingService
 from pharmacy_bot.application.product_selection import ProductSelectionService
 from pharmacy_bot.application.subscription_setup import SubscriptionSetupService
+from pharmacy_bot.application.subscriptions import SubscriptionQueryService
 from pharmacy_bot.config import get_settings
 from pharmacy_bot.infrastructure.database import create_engine, create_session_factory
+from pharmacy_bot.infrastructure.manual_check_scheduler import (
+    DemoManualCheckScheduler,
+    UnavailableManualCheckScheduler,
+)
 from pharmacy_bot.infrastructure.onboarding_repository import (
     SqlAlchemyOnboardingRepository,
 )
@@ -31,6 +36,9 @@ from pharmacy_bot.infrastructure.setup_capabilities import (
     DemoLocationResolver,
     demo_sources,
 )
+from pharmacy_bot.infrastructure.subscription_repository import (
+    SqlAlchemySubscriptionRepository,
+)
 from pharmacy_bot.infrastructure.subscription_setup_repository import (
     SqlAlchemySubscriptionSetupRepository,
 )
@@ -44,6 +52,7 @@ from pharmacy_bot.presentation.onboarding_router import router as onboarding_rou
 from pharmacy_bot.presentation.product_selection_router import (
     router as product_selection_router,
 )
+from pharmacy_bot.presentation.subscription_router import router as subscription_router
 from pharmacy_bot.presentation.subscription_setup_router import (
     router as subscription_setup_router,
 )
@@ -107,11 +116,19 @@ async def main() -> None:
         min_radius_meters=settings.monitoring_min_radius_meters,
         max_radius_meters=settings.monitoring_max_radius_meters,
     )
+    subscription_query_service = SubscriptionQueryService(
+        onboarding_service,
+        SqlAlchemySubscriptionRepository(session_factory),
+        DemoManualCheckScheduler() if demo_mode else UnavailableManualCheckScheduler(),
+        page_size=settings.subscription_results_page_size,
+        manual_check_cooldown=timedelta(seconds=settings.manual_check_cooldown_seconds),
+    )
 
     dispatcher = Dispatcher()
     dispatcher.include_router(onboarding_router)
     dispatcher.include_router(product_selection_router)
     dispatcher.include_router(subscription_setup_router)
+    dispatcher.include_router(subscription_router)
     dispatcher.include_router(navigation_router)
     telegram_session = create_telegram_session(
         str(settings.extra_ca_cert_path) if settings.extra_ca_cert_path else None,
@@ -129,6 +146,7 @@ async def main() -> None:
             navigation_service=navigation_service,
             product_selection_service=product_selection_service,
             subscription_setup_service=subscription_setup_service,
+            subscription_query_service=subscription_query_service,
             allowed_updates=dispatcher.resolve_used_update_types(),
         )
     finally:
