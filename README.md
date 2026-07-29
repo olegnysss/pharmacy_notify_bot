@@ -57,6 +57,11 @@ Story [#83](https://github.com/olegnysss/pharmacy_notify_bot/issues/83) разд
 остаток, самовывоз, доставку и неизвестную online-доступность. Ссылки типа защищены domain-
 инвариантами и CHECK constraint, delivery не проходит radius/pharmacy-list scope, а безопасные
 presentation DTO явно говорят, когда источник не подтверждает остаток в физической аптеке.
+Story [#100](https://github.com/olegnysss/pharmacy_notify_bot/issues/100) добавляет
+версионируемый реестр источников: типизированные capabilities, HTTPS host/redirect allowlist,
+лимиты свежести, запросов, параллелизма и кэша. Любая операция разрешается только активному
+источнику с явной capability и статусом legal `allowed`; изменения конфигурации сохраняются
+в безопасном аудите без credentials и требуют ожидаемую версию.
 
 Команды личного чата:
 

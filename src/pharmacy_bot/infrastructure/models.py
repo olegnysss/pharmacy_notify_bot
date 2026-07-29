@@ -793,6 +793,77 @@ class FulfillmentRecordModel(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class SourceModel(Base):
+    __tablename__ = "sources"
+    __table_args__ = (
+        UniqueConstraint("code", name="uq_sources_code"),
+        CheckConstraint("version > 0", name="ck_sources_version_positive"),
+        CheckConstraint(
+            "source_type IN "
+            "('partner_api', 'public_api', 'webhook', 'export', 'public_page', 'manual')",
+            name="ck_sources_type",
+        ),
+        CheckConstraint(
+            "status IN ('active', 'disabled', 'degraded')",
+            name="ck_sources_status",
+        ),
+        CheckConstraint(
+            "legal_status IN ('allowed', 'review_required', 'blocked')",
+            name="ck_sources_legal_status",
+        ),
+        CheckConstraint(
+            "requests_per_window > 0 AND window_seconds > 0 AND max_concurrency > 0 "
+            "AND freshness_seconds > 0 AND cache_ttl_seconds >= 0 "
+            "AND cache_ttl_seconds <= freshness_seconds",
+            name="ck_sources_limits_positive",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(64), nullable=False)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    legal_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    adapter_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    capability_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    capabilities: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    base_urls: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    redirect_hosts: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    requests_per_window: Mapped[int] = mapped_column(Integer, nullable=False)
+    window_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    max_concurrency: Mapped[int] = mapped_column(Integer, nullable=False)
+    freshness_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    cache_ttl_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class SourceVersionModel(Base):
+    __tablename__ = "source_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_id",
+            "version",
+            name="uq_source_versions_source_version",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("sources.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    safe_snapshot: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    actor_internal_id: Mapped[int | None] = mapped_column(BigInteger)
+    reason: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class ProductSelectionDraftModel(Base):
     __tablename__ = "product_selection_drafts"
 
