@@ -38,6 +38,7 @@ class SqlAlchemyUserSettingsRepository:
                 .values(
                     user_id=user_id,
                     generation=1,
+                    editor_schema_version=1,
                     language=SupportedLanguage.RU.value,
                     timezone_name="Europe/Moscow",
                     default_source_codes=[],
@@ -52,6 +53,7 @@ class SqlAlchemyUserSettingsRepository:
                     max_points_per_message=5,
                     editor_status=SettingsStatus.IDLE.value,
                     editor_location_candidates=[],
+                    editor_expires_at=None,
                 )
                 .on_conflict_do_nothing(index_elements=[UserPreferencesModel.user_id])
             )
@@ -71,6 +73,7 @@ class SqlAlchemyUserSettingsRepository:
             if model is None or model.generation != expected_generation:
                 return None
             model.language = preferences.language.value
+            model.editor_schema_version = 1
             model.timezone_name = preferences.timezone_name
             model.default_location = (
                 self._location_to_json(preferences.default_location)
@@ -95,6 +98,7 @@ class SqlAlchemyUserSettingsRepository:
             model.editor_location_candidates = [
                 self._location_to_json(item) for item in preferences.location_candidates
             ]
+            model.editor_expires_at = preferences.editor_expires_at
             model.generation += 1
             await session.flush()
             return self._snapshot(model)
@@ -143,6 +147,7 @@ class SqlAlchemyUserSettingsRepository:
             location_candidates=tuple(
                 cls._location_from_json(item) for item in model.editor_location_candidates
             ),
+            editor_expires_at=model.editor_expires_at,
         )
 
     @staticmethod

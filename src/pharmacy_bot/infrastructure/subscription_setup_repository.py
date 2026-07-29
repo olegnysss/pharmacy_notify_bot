@@ -60,6 +60,7 @@ class SqlAlchemySubscriptionSetupRepository:
                 .values(
                     user_id=user_id,
                     generation=1,
+                    schema_version=1,
                     status=SetupStatus.CHOOSE_LOCATION.value,
                     **self._product_values(product),
                     location_candidates=[],
@@ -192,6 +193,7 @@ class SqlAlchemySubscriptionSetupRepository:
         expires_at: datetime,
     ) -> None:
         model.generation += 1
+        model.schema_version = 1
         model.status = SetupStatus.CHOOSE_LOCATION.value
         for key, value in SqlAlchemySubscriptionSetupRepository._product_values(product).items():
             setattr(model, key, value)

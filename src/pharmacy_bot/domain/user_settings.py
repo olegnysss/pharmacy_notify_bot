@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import time
+from datetime import datetime, time
 from enum import StrEnum
 
 from pharmacy_bot.domain.subscription_setup import (
@@ -56,6 +56,7 @@ class UserPreferences:
     status: SettingsStatus
     location_mode: LocationInputMode | None = None
     location_candidates: tuple[LocationCandidate, ...] = ()
+    editor_expires_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)

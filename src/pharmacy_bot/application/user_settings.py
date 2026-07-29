@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unicodedata
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -76,6 +77,15 @@ class SourceCapabilities(Protocol):
     ) -> tuple[SourceOption, ...]: ...
 
 
+class Clock(Protocol):
+    def now(self) -> datetime: ...
+
+
+class SystemClock:
+    def now(self) -> datetime:
+        return datetime.now(UTC)
+
+
 class UserSettingsService:
     _TIMEZONES = ("Europe/Moscow", "Europe/Kaliningrad", "Asia/Yekaterinburg", "UTC")
     _SETTINGS_PRODUCT = ProductSnapshot(
@@ -98,6 +108,8 @@ class UserSettingsService:
         limits: ServiceLimits,
         *,
         max_points_per_message: int = 20,
+        editor_ttl: timedelta = timedelta(hours=2),
+        clock: Clock | None = None,
     ) -> None:
         self._onboarding = onboarding
         self._repository = repository
@@ -105,6 +117,8 @@ class UserSettingsService:
         self._sources = sources
         self._limits = limits
         self._max_points = max_points_per_message
+        self._editor_ttl = editor_ttl
+        self._clock = clock or SystemClock()
 
     async def open(
         self,
@@ -167,6 +181,7 @@ class UserSettingsService:
                 status=SettingsStatus.AWAITING_LOCATION,
                 location_mode=mode,
                 location_candidates=(),
+                editor_expires_at=self._clock.now() + self._editor_ttl,
             ),
             SettingsView.AWAITING_LOCATION,
         )
@@ -176,6 +191,8 @@ class UserSettingsService:
         return bool(
             not isinstance(context, SettingsResult)
             and context[1].status is SettingsStatus.AWAITING_LOCATION
+            and context[1].editor_expires_at is not None
+            and context[1].editor_expires_at > self._clock.now()
             and context[1].location_mode
             in {
                 LocationInputMode.CITY,
@@ -194,6 +211,8 @@ class UserSettingsService:
         onboarding, preferences = context
         if (
             preferences.status is not SettingsStatus.AWAITING_LOCATION
+            or preferences.editor_expires_at is None
+            or preferences.editor_expires_at <= self._clock.now()
             or preferences.location_mode
             not in {
                 LocationInputMode.CITY,
@@ -426,6 +445,7 @@ class UserSettingsService:
                 status=SettingsStatus.IDLE,
                 location_mode=None,
                 location_candidates=(),
+                editor_expires_at=None,
             ),
             SettingsView.SAVED,
         )
@@ -449,6 +469,7 @@ class UserSettingsService:
                 default_source_codes=(),
                 location_mode=None,
                 location_candidates=(),
+                editor_expires_at=None,
             ),
             SettingsView.SAVED,
         )
@@ -569,7 +590,23 @@ class UserSettingsService:
         onboarding = await self._onboarding.start(identity)
         if onboarding.view is not OnboardingView.MAIN_MENU:
             return SettingsResult(SettingsView.ONBOARDING, onboarding)
-        return onboarding, await self._repository.get_or_create(onboarding.user.id)
+        preferences = await self._repository.get_or_create(onboarding.user.id)
+        if preferences.status is not SettingsStatus.IDLE and (
+            preferences.editor_expires_at is None
+            or preferences.editor_expires_at <= self._clock.now()
+        ):
+            saved = await self._repository.save(
+                replace(
+                    preferences,
+                    status=SettingsStatus.IDLE,
+                    location_mode=None,
+                    location_candidates=(),
+                    editor_expires_at=None,
+                ),
+                expected_generation=preferences.generation,
+            )
+            preferences = saved or preferences
+        return onboarding, preferences
 
     async def _current(
         self,
