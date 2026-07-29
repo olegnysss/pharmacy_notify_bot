@@ -77,6 +77,12 @@ async def show_help(
     if callback.from_user is None or not isinstance(callback.message, Message):
         await callback.answer("Не удалось открыть справку. Отправьте /start.", show_alert=True)
         return
+    if callback.message.chat.type != ChatType.PRIVATE:
+        await callback.answer(
+            "Справка и управление доступны только в личном чате с ботом.",
+            show_alert=True,
+        )
+        return
 
     identity = identity_from_telegram(callback.from_user, callback.message.chat.id)
     result = await onboarding_service.start(identity)
@@ -91,6 +97,12 @@ async def _apply_callback(
 ) -> None:
     if callback.from_user is None or not isinstance(callback.message, Message):
         await callback.answer("Кнопка устарела. Отправьте /start.", show_alert=True)
+        return
+    if callback.message.chat.type != ChatType.PRIVATE:
+        await callback.answer(
+            "Управление доступно только в личном чате с ботом.",
+            show_alert=True,
+        )
         return
 
     identity = identity_from_telegram(callback.from_user, callback.message.chat.id)

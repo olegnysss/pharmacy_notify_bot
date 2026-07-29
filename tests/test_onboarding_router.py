@@ -77,3 +77,32 @@ async def test_accept_callback_edits_message_only_after_persistence() -> None:
     assert repository.decision_details
     message.edit_text.assert_awaited_once()
     callback.answer.assert_awaited_once_with()
+
+
+async def test_onboarding_callback_in_group_never_reads_or_updates_profile() -> None:
+    repository = InMemoryOnboardingRepository()
+    service = OnboardingService(
+        repository,
+        DocumentBundle(
+            "terms-v1",
+            "https://example.com/terms",
+            "privacy-v1",
+            "https://example.com/privacy",
+        ),
+    )
+    message = Mock(spec=Message)
+    message.chat = Chat(id=-1001, type="group")
+    message.edit_text = AsyncMock()
+    callback = Mock(spec=CallbackQuery)
+    callback.from_user = telegram_user()
+    callback.message = message
+    callback.answer = AsyncMock()
+
+    await accept_documents(callback, service)
+
+    assert not repository.users
+    message.edit_text.assert_not_awaited()
+    callback.answer.assert_awaited_once_with(
+        "Управление доступно только в личном чате с ботом.",
+        show_alert=True,
+    )

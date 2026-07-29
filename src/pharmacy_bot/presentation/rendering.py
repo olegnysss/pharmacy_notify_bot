@@ -18,6 +18,49 @@ class RenderedMessage:
     reply_markup: InlineKeyboardMarkup
 
 
+def main_menu_markup() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Добавить товар",
+                    callback_data=SubscriptionCallback(action="start").pack(),
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Мои подписки",
+                    callback_data=NavigationCallback(action="subscriptions").pack(),
+                ),
+                InlineKeyboardButton(
+                    text="Проверить наличие",
+                    callback_data=NavigationCallback(action="check").pack(),
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Локация",
+                    callback_data=NavigationCallback(action="location").pack(),
+                ),
+                InlineKeyboardButton(
+                    text="Настройки",
+                    callback_data=NavigationCallback(action="settings").pack(),
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Помощь",
+                    callback_data=NavigationCallback(action="help").pack(),
+                ),
+                InlineKeyboardButton(
+                    text="Конфиденциальность",
+                    callback_data=NavigationCallback(action="privacy").pack(),
+                ),
+            ],
+        ]
+    )
+
+
 def render_onboarding(result: OnboardingResult) -> RenderedMessage:
     renderers = {
         OnboardingView.WELCOME: _render_welcome,
@@ -30,10 +73,17 @@ def render_onboarding(result: OnboardingResult) -> RenderedMessage:
 
 
 def render_help(result: OnboardingResult) -> RenderedMessage:
+    has_access = result.view is OnboardingView.MAIN_MENU
     return RenderedMessage(
         text=(
-            "Бот отслеживает данные разрешённых аптечных источников и сообщает об изменениях.\n\n"
-            "Он не продаёт товары, не гарантирует фактический остаток и не даёт медицинских "
+            "Помощь\n\n"
+            "• «Добавить товар» запускает настройку новой подписки.\n"
+            "• «Мои подписки» позволяет просматривать, приостанавливать и прекращать "
+            "мониторинг.\n"
+            "• /cancel безопасно отменяет незавершённый сценарий.\n\n"
+            "Бот отслеживает данные разрешённых аптечных источников. Данные могут обновляться "
+            "с задержкой: проверяйте источник и время последней проверки.\n\n"
+            "Бот не продаёт товары, не гарантирует фактический остаток и не даёт медицинских "
             "рекомендаций. Перед поездкой или покупкой перепроверьте данные у аптеки."
         ),
         reply_markup=InlineKeyboardMarkup(
@@ -50,8 +100,12 @@ def render_help(result: OnboardingResult) -> RenderedMessage:
                 ],
                 [
                     InlineKeyboardButton(
-                        text="Продолжить",
-                        callback_data=OnboardingCallback(action="continue").pack(),
+                        text="Главное меню" if has_access else "Продолжить",
+                        callback_data=(
+                            NavigationCallback(action="main").pack()
+                            if has_access
+                            else OnboardingCallback(action="continue").pack()
+                        ),
                     )
                 ],
             ]
@@ -196,31 +250,10 @@ def _render_declined(result: OnboardingResult) -> RenderedMessage:
 
 def _render_main_menu(result: OnboardingResult) -> RenderedMessage:
     return RenderedMessage(
-        text="Главное меню",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="Добавить товар",
-                        callback_data=SubscriptionCallback(action="start").pack(),
-                    )
-                ],
-                [
-                    InlineKeyboardButton(
-                        text="Мои подписки",
-                        callback_data=NavigationCallback(action="subscriptions").pack(),
-                    ),
-                    InlineKeyboardButton(
-                        text="Настройки",
-                        callback_data=NavigationCallback(action="settings").pack(),
-                    ),
-                ],
-                [
-                    InlineKeyboardButton(
-                        text="Помощь",
-                        callback_data=OnboardingCallback(action="help").pack(),
-                    )
-                ],
-            ]
+        text=(
+            "Главное меню\n\n"
+            "Выберите действие. Бот сообщает данные аптечных источников, "
+            "но не гарантирует фактическое наличие товара."
         ),
+        reply_markup=main_menu_markup(),
     )

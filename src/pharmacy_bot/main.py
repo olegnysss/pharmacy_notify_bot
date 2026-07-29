@@ -7,11 +7,18 @@ import ssl
 from aiogram import Bot, Dispatcher
 from aiogram.client.session.aiohttp import AiohttpSession
 
+from pharmacy_bot.application.navigation import NavigationService
 from pharmacy_bot.application.onboarding import OnboardingService
 from pharmacy_bot.config import get_settings
 from pharmacy_bot.infrastructure.database import create_engine, create_session_factory
 from pharmacy_bot.infrastructure.onboarding_repository import (
     SqlAlchemyOnboardingRepository,
+)
+from pharmacy_bot.presentation.navigation_router import (
+    configure_private_commands,
+)
+from pharmacy_bot.presentation.navigation_router import (
+    router as navigation_router,
 )
 from pharmacy_bot.presentation.onboarding_router import router as onboarding_router
 
@@ -43,9 +50,11 @@ async def main() -> None:
     session_factory = create_session_factory(engine)
     repository = SqlAlchemyOnboardingRepository(session_factory)
     onboarding_service = OnboardingService(repository, settings.document_bundle())
+    navigation_service = NavigationService(onboarding_service)
 
     dispatcher = Dispatcher()
     dispatcher.include_router(onboarding_router)
+    dispatcher.include_router(navigation_router)
     telegram_session = create_telegram_session(
         str(settings.extra_ca_cert_path) if settings.extra_ca_cert_path else None,
     )
@@ -55,9 +64,11 @@ async def main() -> None:
     )
 
     try:
+        await configure_private_commands(bot)
         await dispatcher.start_polling(
             bot,
             onboarding_service=onboarding_service,
+            navigation_service=navigation_service,
             allowed_updates=dispatcher.resolve_used_update_types(),
         )
     finally:

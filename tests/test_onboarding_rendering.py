@@ -84,8 +84,11 @@ def test_returning_user_gets_main_menu_entrypoints() -> None:
     assert callback_values(OnboardingView.MAIN_MENU) == {
         "subscription:start",
         "navigation:subscriptions",
+        "navigation:check",
+        "navigation:location",
         "navigation:settings",
-        "onboarding:help",
+        "navigation:help",
+        "navigation:privacy",
     }
 
 
