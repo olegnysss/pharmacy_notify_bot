@@ -11,6 +11,7 @@ from aiogram.client.session.aiohttp import AiohttpSession
 from pharmacy_bot.application.navigation import NavigationService
 from pharmacy_bot.application.onboarding import OnboardingService
 from pharmacy_bot.application.product_selection import ProductSelectionService
+from pharmacy_bot.application.subscription_lifecycle import SubscriptionLifecycleService
 from pharmacy_bot.application.subscription_setup import SubscriptionSetupService
 from pharmacy_bot.application.subscriptions import SubscriptionQueryService
 from pharmacy_bot.config import get_settings
@@ -36,12 +37,17 @@ from pharmacy_bot.infrastructure.setup_capabilities import (
     DemoLocationResolver,
     demo_sources,
 )
+from pharmacy_bot.infrastructure.subscription_lifecycle_repository import (
+    SourceConfigurationValidator,
+    SqlAlchemySubscriptionLifecycleRepository,
+)
 from pharmacy_bot.infrastructure.subscription_repository import (
     SqlAlchemySubscriptionRepository,
 )
 from pharmacy_bot.infrastructure.subscription_setup_repository import (
     SqlAlchemySubscriptionSetupRepository,
 )
+from pharmacy_bot.presentation.lifecycle_router import router as lifecycle_router
 from pharmacy_bot.presentation.navigation_router import (
     configure_private_commands,
 )
@@ -104,12 +110,14 @@ async def main() -> None:
         draft_ttl=timedelta(seconds=settings.product_draft_ttl_seconds),
     )
     demo_mode = settings.product_discovery_mode == "demo"
+    location_resolver = DemoLocationResolver() if demo_mode else DefaultLocationResolver()
+    source_capabilities = ConfiguredSourceCapabilities(demo_sources() if demo_mode else ())
     subscription_setup_service = SubscriptionSetupService(
         onboarding_service,
         product_draft_repository,
         SqlAlchemySubscriptionSetupRepository(session_factory),
-        DemoLocationResolver() if demo_mode else DefaultLocationResolver(),
-        ConfiguredSourceCapabilities(demo_sources() if demo_mode else ()),
+        location_resolver,
+        source_capabilities,
         draft_ttl=timedelta(seconds=settings.setup_draft_ttl_seconds),
         location_min_length=settings.location_input_min_length,
         location_max_length=settings.location_input_max_length,
@@ -123,11 +131,24 @@ async def main() -> None:
         page_size=settings.subscription_results_page_size,
         manual_check_cooldown=timedelta(seconds=settings.manual_check_cooldown_seconds),
     )
+    subscription_lifecycle_service = SubscriptionLifecycleService(
+        onboarding_service,
+        SqlAlchemySubscriptionLifecycleRepository(session_factory),
+        location_resolver,
+        source_capabilities,
+        SourceConfigurationValidator(source_capabilities),
+        draft_ttl=timedelta(seconds=settings.setup_draft_ttl_seconds),
+        min_radius_meters=settings.monitoring_min_radius_meters,
+        max_radius_meters=settings.monitoring_max_radius_meters,
+        location_min_length=settings.location_input_min_length,
+        location_max_length=settings.location_input_max_length,
+    )
 
     dispatcher = Dispatcher()
     dispatcher.include_router(onboarding_router)
     dispatcher.include_router(product_selection_router)
     dispatcher.include_router(subscription_setup_router)
+    dispatcher.include_router(lifecycle_router)
     dispatcher.include_router(subscription_router)
     dispatcher.include_router(navigation_router)
     telegram_session = create_telegram_session(
@@ -147,6 +168,7 @@ async def main() -> None:
             product_selection_service=product_selection_service,
             subscription_setup_service=subscription_setup_service,
             subscription_query_service=subscription_query_service,
+            subscription_lifecycle_service=subscription_lifecycle_service,
             allowed_updates=dispatcher.resolve_used_update_types(),
         )
     finally:

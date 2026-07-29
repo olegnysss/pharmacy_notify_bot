@@ -12,10 +12,12 @@ from pharmacy_bot.application.product_selection import (
     ProductSelectionResult,
     ProductSelectionService,
 )
+from pharmacy_bot.application.subscription_lifecycle import SubscriptionLifecycleService
 from pharmacy_bot.application.subscription_setup import SubscriptionSetupService
 from pharmacy_bot.domain.onboarding import TelegramIdentity
 from pharmacy_bot.domain.product_selection import ProductInputMode
 from pharmacy_bot.presentation.callbacks import ProductCallback, SubscriptionCallback
+from pharmacy_bot.presentation.lifecycle_rendering import render_lifecycle
 from pharmacy_bot.presentation.onboarding_router import identity_from_telegram
 from pharmacy_bot.presentation.product_selection_rendering import render_product_selection
 from pharmacy_bot.presentation.subscription_setup_rendering import (
@@ -38,6 +40,7 @@ async def cancel_product_selection_by_command(
     message: Message,
     product_selection_service: ProductSelectionService,
     subscription_setup_service: SubscriptionSetupService | None = None,
+    subscription_lifecycle_service: SubscriptionLifecycleService | None = None,
 ) -> None:
     if message.from_user is None:
         return
@@ -50,6 +53,18 @@ async def cancel_product_selection_by_command(
     if setup_result is not None:
         rendered = render_subscription_setup(setup_result)
         await message.answer(rendered.text, reply_markup=rendered.reply_markup)
+        return
+    lifecycle_result = (
+        await subscription_lifecycle_service.cancel_edit(identity)
+        if subscription_lifecycle_service
+        else None
+    )
+    if lifecycle_result is not None:
+        rendered_lifecycle = render_lifecycle(lifecycle_result)
+        await message.answer(
+            rendered_lifecycle.text,
+            reply_markup=rendered_lifecycle.reply_markup,
+        )
         return
     await _answer(message, product_selection_service.cancel)
 
