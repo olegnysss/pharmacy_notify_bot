@@ -59,3 +59,12 @@ def test_supported_product_hosts_are_normalized_from_configuration() -> None:
     settings = Settings(**data)
 
     assert settings.product_hosts() == ("shop.example", "second.example")
+
+
+def test_monitoring_minimum_radius_cannot_exceed_maximum() -> None:
+    data = settings_data()
+    data["monitoring_min_radius_meters"] = "30000"
+    data["monitoring_max_radius_meters"] = "25000"
+
+    with pytest.raises(ValidationError, match="minimum radius cannot exceed maximum"):
+        Settings(**data)

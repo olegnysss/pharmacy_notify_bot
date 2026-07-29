@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     product_draft_ttl_seconds: int = Field(default=3600, ge=60, le=604800)
     product_discovery_mode: Literal["unavailable", "demo"] = "unavailable"
     supported_product_hosts: str = ""
+    setup_draft_ttl_seconds: int = Field(default=7200, ge=300, le=604800)
+    location_input_min_length: int = Field(default=2, ge=1, le=32)
+    location_input_max_length: int = Field(default=256, ge=16, le=512)
+    monitoring_min_radius_meters: int = Field(default=1000, ge=100, le=100000)
+    monitoring_max_radius_meters: int = Field(default=25000, ge=1000, le=500000)
 
     @field_validator("terms_url", "privacy_url")
     @classmethod
@@ -45,6 +50,10 @@ class Settings(BaseSettings):
     def validate_product_query_limits(self) -> Settings:
         if self.product_query_min_length > self.product_query_max_length:
             raise ValueError("product query minimum cannot exceed maximum")
+        if self.location_input_min_length > self.location_input_max_length:
+            raise ValueError("location input minimum cannot exceed maximum")
+        if self.monitoring_min_radius_meters > self.monitoring_max_radius_meters:
+            raise ValueError("monitoring minimum radius cannot exceed maximum")
         return self
 
     def document_bundle(self) -> DocumentBundle:

@@ -3,8 +3,11 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
+    Boolean,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -44,6 +47,14 @@ class UserModel(Base):
         cascade="all, delete-orphan",
     )
     product_selection_draft: Mapped[ProductSelectionDraftModel | None] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    subscription_setup_draft: Mapped[SubscriptionSetupDraftModel | None] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    subscriptions: Mapped[list[SubscriptionModel]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
     )
@@ -141,3 +152,114 @@ class ProductSelectionCandidateModel(Base):
     confidence: Mapped[str] = mapped_column(String(32), nullable=False)
 
     draft: Mapped[ProductSelectionDraftModel] = relationship(back_populates="candidates")
+
+
+class SubscriptionSetupDraftModel(Base):
+    __tablename__ = "subscription_setup_drafts"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    generation: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    product_candidate_key: Mapped[str] = mapped_column(String(256), nullable=False)
+    product_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    product_name: Mapped[str] = mapped_column(String(512), nullable=False)
+    product_form: Mapped[str | None] = mapped_column(String(128))
+    product_dosage: Mapped[str | None] = mapped_column(String(128))
+    product_package: Mapped[str | None] = mapped_column(String(128))
+    product_manufacturer: Mapped[str | None] = mapped_column(String(256))
+    product_source_host: Mapped[str | None] = mapped_column(String(255))
+    location_mode: Mapped[str | None] = mapped_column(String(32))
+    location_candidates: Mapped[list[dict[str, object]]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+    )
+    location: Mapped[dict[str, object] | None] = mapped_column(JSON)
+    radius_meters: Mapped[int | None] = mapped_column(Integer)
+    available_sources: Mapped[list[dict[str, object]]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+    )
+    selected_source_codes: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+    )
+    notify_low_stock: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    notify_orderable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    include_price: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    completion_mode: Mapped[str | None] = mapped_column(String(32))
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    user: Mapped[UserModel] = relationship(back_populates="subscription_setup_draft")
+
+
+class SubscriptionModel(Base):
+    __tablename__ = "subscriptions"
+    __table_args__ = (
+        Index("ix_subscriptions_user_status_created", "user_id", "status", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    setup_draft_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    creation_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    product_candidate_key: Mapped[str] = mapped_column(String(256), nullable=False)
+    product_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    product_name: Mapped[str] = mapped_column(String(512), nullable=False)
+    product_form: Mapped[str | None] = mapped_column(String(128))
+    product_dosage: Mapped[str | None] = mapped_column(String(128))
+    product_package: Mapped[str | None] = mapped_column(String(128))
+    product_manufacturer: Mapped[str | None] = mapped_column(String(256))
+    product_source_host: Mapped[str | None] = mapped_column(String(255))
+    location_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    location_key: Mapped[str] = mapped_column(String(256), nullable=False)
+    location_display_name: Mapped[str] = mapped_column(String(512), nullable=False)
+    location_city: Mapped[str | None] = mapped_column(String(256))
+    location_address: Mapped[str | None] = mapped_column(String(512))
+    location_latitude: Mapped[float | None] = mapped_column(Float)
+    location_longitude: Mapped[float | None] = mapped_column(Float)
+    radius_meters: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_codes: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    notify_low_stock: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    notify_orderable: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    include_price: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    completion_mode: Mapped[str] = mapped_column(String(32), nullable=False)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    availability_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    user: Mapped[UserModel] = relationship(back_populates="subscriptions")

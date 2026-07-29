@@ -11,6 +11,7 @@ from aiogram.client.session.aiohttp import AiohttpSession
 from pharmacy_bot.application.navigation import NavigationService
 from pharmacy_bot.application.onboarding import OnboardingService
 from pharmacy_bot.application.product_selection import ProductSelectionService
+from pharmacy_bot.application.subscription_setup import SubscriptionSetupService
 from pharmacy_bot.config import get_settings
 from pharmacy_bot.infrastructure.database import create_engine, create_session_factory
 from pharmacy_bot.infrastructure.onboarding_repository import (
@@ -24,6 +25,15 @@ from pharmacy_bot.infrastructure.product_discovery import (
 from pharmacy_bot.infrastructure.product_draft_repository import (
     SqlAlchemyProductDraftRepository,
 )
+from pharmacy_bot.infrastructure.setup_capabilities import (
+    ConfiguredSourceCapabilities,
+    DefaultLocationResolver,
+    DemoLocationResolver,
+    demo_sources,
+)
+from pharmacy_bot.infrastructure.subscription_setup_repository import (
+    SqlAlchemySubscriptionSetupRepository,
+)
 from pharmacy_bot.presentation.navigation_router import (
     configure_private_commands,
 )
@@ -33,6 +43,9 @@ from pharmacy_bot.presentation.navigation_router import (
 from pharmacy_bot.presentation.onboarding_router import router as onboarding_router
 from pharmacy_bot.presentation.product_selection_router import (
     router as product_selection_router,
+)
+from pharmacy_bot.presentation.subscription_setup_router import (
+    router as subscription_setup_router,
 )
 
 
@@ -69,9 +82,10 @@ async def main() -> None:
         if settings.product_discovery_mode == "demo"
         else UnavailableProductDiscoveryGateway()
     )
+    product_draft_repository = SqlAlchemyProductDraftRepository(session_factory)
     product_selection_service = ProductSelectionService(
         onboarding_service,
-        SqlAlchemyProductDraftRepository(session_factory),
+        product_draft_repository,
         product_discovery,
         ConfiguredProductLinkPolicy(settings.product_hosts()),
         query_min_length=settings.product_query_min_length,
@@ -80,10 +94,24 @@ async def main() -> None:
         page_size=settings.product_results_page_size,
         draft_ttl=timedelta(seconds=settings.product_draft_ttl_seconds),
     )
+    demo_mode = settings.product_discovery_mode == "demo"
+    subscription_setup_service = SubscriptionSetupService(
+        onboarding_service,
+        product_draft_repository,
+        SqlAlchemySubscriptionSetupRepository(session_factory),
+        DemoLocationResolver() if demo_mode else DefaultLocationResolver(),
+        ConfiguredSourceCapabilities(demo_sources() if demo_mode else ()),
+        draft_ttl=timedelta(seconds=settings.setup_draft_ttl_seconds),
+        location_min_length=settings.location_input_min_length,
+        location_max_length=settings.location_input_max_length,
+        min_radius_meters=settings.monitoring_min_radius_meters,
+        max_radius_meters=settings.monitoring_max_radius_meters,
+    )
 
     dispatcher = Dispatcher()
     dispatcher.include_router(onboarding_router)
     dispatcher.include_router(product_selection_router)
+    dispatcher.include_router(subscription_setup_router)
     dispatcher.include_router(navigation_router)
     telegram_session = create_telegram_session(
         str(settings.extra_ca_cert_path) if settings.extra_ca_cert_path else None,
@@ -100,6 +128,7 @@ async def main() -> None:
             onboarding_service=onboarding_service,
             navigation_service=navigation_service,
             product_selection_service=product_selection_service,
+            subscription_setup_service=subscription_setup_service,
             allowed_updates=dispatcher.resolve_used_update_types(),
         )
     finally:
