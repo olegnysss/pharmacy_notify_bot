@@ -41,6 +41,10 @@ Story [#72](https://github.com/olegnysss/pharmacy_notify_bot/issues/72) защи
 от drift карточки: изменение переводит предложение в revalidation, critical/incomplete drift
 карантинится, а выпуск требует exact/confirmed mapping и новой проверки. Delivery guard
 сверяет версию наблюдения непосредственно перед событием, не затрагивая другие предложения.
+Story [#80](https://github.com/olegnysss/pharmacy_notify_bot/issues/80) вводит типизированные
+географические scope для страны, региона, города, района, адреса, радиуса, списка аптек и
+online-региона. Scope имеет детерминированный fingerprint и версии, а eligibility возвращает
+`eligible/ineligible/unknown`; точка без координат никогда не проходит radius-фильтр.
 
 Команды личного чата:
 

@@ -478,6 +478,69 @@ class SourceProductRevalidationModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class LocationScopeModel(Base):
+    __tablename__ = "location_scopes"
+    __table_args__ = (
+        UniqueConstraint("fingerprint", name="uq_location_scopes_fingerprint"),
+        CheckConstraint("version > 0", name="ck_location_scopes_version_positive"),
+        CheckConstraint(
+            "kind IN ('country', 'region', 'city', 'district', 'radius', 'address', "
+            "'pharmacy_list', 'online_region')",
+            name="ck_location_scopes_kind",
+        ),
+        CheckConstraint(
+            "latitude IS NULL OR (latitude >= -90 AND latitude <= 90)",
+            name="ck_location_scopes_latitude",
+        ),
+        CheckConstraint(
+            "longitude IS NULL OR (longitude >= -180 AND longitude <= 180)",
+            name="ck_location_scopes_longitude",
+        ),
+        CheckConstraint(
+            "radius_meters IS NULL OR radius_meters > 0",
+            name="ck_location_scopes_radius_positive",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    country_key: Mapped[str | None] = mapped_column(String(128))
+    region_key: Mapped[str | None] = mapped_column(String(128))
+    city_key: Mapped[str | None] = mapped_column(String(128))
+    district_key: Mapped[str | None] = mapped_column(String(128))
+    latitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    radius_meters: Mapped[int | None] = mapped_column(Integer)
+    address_key: Mapped[str | None] = mapped_column(String(128))
+    pharmacy_ids: Mapped[list[int]] = mapped_column(JSON, nullable=False, default=list)
+    online_region_key: Mapped[str | None] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class LocationScopeVersionModel(Base):
+    __tablename__ = "location_scope_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "location_scope_id",
+            "version",
+            name="uq_location_scope_versions_scope_version",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    location_scope_id: Mapped[int] = mapped_column(
+        ForeignKey("location_scopes.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    safe_snapshot: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class ProductSelectionDraftModel(Base):
     __tablename__ = "product_selection_drafts"
 
@@ -580,6 +643,10 @@ class SubscriptionSetupDraftModel(Base):
         ForeignKey("canonical_products.id", ondelete="SET NULL"),
     )
     canonical_product_version: Mapped[int | None] = mapped_column(Integer)
+    location_scope_id: Mapped[int | None] = mapped_column(
+        ForeignKey("location_scopes.id", ondelete="SET NULL"),
+    )
+    location_scope_version: Mapped[int | None] = mapped_column(Integer)
     location_mode: Mapped[str | None] = mapped_column(String(32))
     location_candidates: Mapped[list[dict[str, object]]] = mapped_column(
         JSON,
@@ -645,6 +712,10 @@ class SubscriptionModel(Base):
         ForeignKey("canonical_products.id", ondelete="SET NULL"),
     )
     canonical_product_version: Mapped[int | None] = mapped_column(Integer)
+    location_scope_id: Mapped[int | None] = mapped_column(
+        ForeignKey("location_scopes.id", ondelete="SET NULL"),
+    )
+    location_scope_version: Mapped[int | None] = mapped_column(Integer)
     location_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     location_key: Mapped[str] = mapped_column(String(256), nullable=False)
     location_display_name: Mapped[str] = mapped_column(String(512), nullable=False)
