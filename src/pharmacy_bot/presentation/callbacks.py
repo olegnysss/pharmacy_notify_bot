@@ -17,3 +17,9 @@ class ProductCallback(CallbackData, prefix="product"):
     action: str
     generation: int
     value: int
+
+
+class SetupCallback(CallbackData, prefix="setup"):
+    action: str
+    generation: int
+    value: int
