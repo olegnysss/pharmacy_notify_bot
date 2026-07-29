@@ -25,6 +25,10 @@ Story [#19](https://github.com/olegnysss/pharmacy_notify_bot/issues/19) заве
 предлагает безопасное продолжение, повторные Telegram updates дедуплицируются с lease,
 устаревшие callbacks проверяются по generation и владельцу, а неизвестные ошибки получают
 локализованное безопасное сообщение и correlation ID.
+Story [#60](https://github.com/olegnysss/pharmacy_notify_bot/issues/60) вводит канонический
+каталог: клинически значимую identity signature, Decimal-нормализацию дозировок и единиц,
+устойчивые identifiers, provenance и неизменяемые версии идентичности. Предложения аптечных
+источников будут подключены к этой модели следующей story.
 
 Команды личного чата:
 
