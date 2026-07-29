@@ -68,6 +68,12 @@ Story [#101](https://github.com/olegnysss/pharmacy_notify_bot/issues/101) вво
 aiohttp wire проверяет TLS, не следует редиректам автоматически и не хранит cookies; policy
 проверяет каждый redirect host, content type и размер streaming-ответа до бизнес-парсинга,
 а диагностика не содержит query, headers или body.
+Story [#102](https://github.com/olegnysss/pharmacy_notify_bot/issues/102) определяет
+версионируемый adapter contract для health, поиска, карточки, аптек и доступности. Immutable
+DTO сохраняют отсутствующие значения как `unknown`, ограничивают строки и списки и связывают
+результат с source/adapter/contract/schema provenance. Строгий codec отклоняет неизвестные
+поля, а PostgreSQL receipt делает ingestion атомарным и идемпотентным по бизнес-запросу,
+не смешивая его fingerprint с correlation/causation IDs.
 
 Команды личного чата:
 
