@@ -31,3 +31,10 @@ class SubscriptionViewCallback(CallbackData, prefix="subview"):
     page: int
     filter_code: int
     version: int
+
+
+class LifecycleCallback(CallbackData, prefix="lifecycle"):
+    action: str
+    subscription_id: int
+    generation: int
+    value: int

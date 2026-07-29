@@ -58,6 +58,10 @@ class UserModel(Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    subscription_edit_draft: Mapped[SubscriptionEditDraftModel | None] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
 
 class ConsentDecisionModel(Base):
@@ -278,3 +282,72 @@ class SubscriptionModel(Base):
     )
 
     user: Mapped[UserModel] = relationship(back_populates="subscriptions")
+
+
+class SubscriptionEditDraftModel(Base):
+    __tablename__ = "subscription_edit_drafts"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    subscription_id: Mapped[int] = mapped_column(
+        ForeignKey("subscriptions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    base_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    location_mode: Mapped[str | None] = mapped_column(String(32))
+    location_candidates: Mapped[list[dict[str, object]]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+    )
+    location: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    radius_meters: Mapped[int] = mapped_column(Integer, nullable=False)
+    available_sources: Mapped[list[dict[str, object]]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+    )
+    selected_source_codes: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    notify_low_stock: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    notify_orderable: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    include_price: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    completion_mode: Mapped[str] = mapped_column(String(32), nullable=False)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    user: Mapped[UserModel] = relationship(back_populates="subscription_edit_draft")
+
+
+class AuditLogModel(Base):
+    __tablename__ = "audit_logs"
+    __table_args__ = (
+        Index("ix_audit_logs_user_subscription_time", "user_id", "subscription_id", "occurred_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    subscription_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    metadata_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
