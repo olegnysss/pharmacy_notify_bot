@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 
 from pharmacy_bot.application.onboarding import DocumentBundle, OnboardingService
@@ -20,6 +20,7 @@ from pharmacy_bot.domain.subscription_setup import (
 )
 from tests.fakes import InMemoryOnboardingRepository
 from tests.setup_fakes import ConfirmedProductDraftReader, InMemorySetupRepository
+from tests.user_settings_fakes import InMemorySettingsRepository
 
 
 @dataclass
@@ -104,6 +105,7 @@ def identity() -> TelegramIdentity:
 async def build_service(
     *,
     sources: FakeSources | None = None,
+    preferences: InMemorySettingsRepository | None = None,
 ) -> tuple[OnboardingService, InMemorySetupRepository, SubscriptionSetupService]:
     onboarding = OnboardingService(
         InMemoryOnboardingRepository(),
@@ -130,6 +132,9 @@ async def build_service(
             location_max_length=256,
             min_radius_meters=1000,
             max_radius_meters=25000,
+            preferences=preferences,
+            max_active_subscriptions=2,
+            max_sources_per_subscription=1,
             clock=FixedClock(),
         ),
     )
@@ -271,3 +276,42 @@ async def test_until_date_is_validated_in_user_timezone_and_saved_in_utc() -> No
     assert valid and valid.view is SetupView.REVIEW
     assert valid.draft and valid.draft.ends_at
     assert valid.draft.ends_at.tzinfo is UTC
+
+
+async def test_new_setup_applies_visible_defaults_without_changing_existing_rules() -> None:
+    preferences = InMemorySettingsRepository()
+    value = await preferences.get_or_create(1)
+    location = LocationCandidate(
+        "city:moscow",
+        LocationInputMode.CITY,
+        "Москва",
+        city="Москва",
+        confidence=LocationConfidence.EXACT,
+    )
+    preferences.value = replace(
+        value,
+        default_location=location,
+        default_radius_meters=5000,
+        default_source_codes=("source-a",),
+        completion_mode=CompletionMode.PAUSE_AFTER_SUCCESS,
+    )
+    _, _, service = await build_service(preferences=preferences)
+
+    result = await service.start(identity())
+
+    assert result.view is SetupView.REVIEW
+    assert result.draft
+    assert result.draft.location == location
+    assert result.draft.selected_source_codes == ("source-a",)
+    assert result.draft.completion_mode is CompletionMode.PAUSE_AFTER_SUCCESS
+
+
+async def test_known_subscription_quota_blocks_early_with_recovery_action() -> None:
+    preferences = InMemorySettingsRepository(active_subscriptions=2)
+    _, repository, service = await build_service(preferences=preferences)
+
+    result = await service.start(identity())
+
+    assert result.view is SetupView.QUOTA_EXCEEDED
+    assert "Приостановите или удалите" in (result.error or "")
+    assert repository.drafts == {}

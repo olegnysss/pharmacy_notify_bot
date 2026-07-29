@@ -53,6 +53,26 @@ def render_subscription_setup(result: SetupResult) -> RenderedMessage:
         return _error(result)
     if result.view is SetupView.TEMPORARY_ERROR:
         return _temporary_error(result)
+    if result.view is SetupView.QUOTA_EXCEEDED:
+        return RenderedMessage(
+            result.error or "Достигнут лимит активных подписок.",
+            InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="Управлять подписками",
+                            callback_data=NavigationCallback(action="subscriptions").pack(),
+                        )
+                    ],
+                    [
+                        InlineKeyboardButton(
+                            text="Настройки и лимиты",
+                            callback_data=NavigationCallback(action="settings").pack(),
+                        )
+                    ],
+                ]
+            ),
+        )
     return _stale()
 
 
@@ -288,7 +308,7 @@ def _awaiting_end_date(result: SetupResult) -> RenderedMessage:
     return RenderedMessage(
         (
             "Введите дату окончания в формате ДД.ММ.ГГГГ.\n\n"
-            "Дата интерпретируется в Europe/Moscow; бизнес-время сохраняется в UTC."
+            "Дата интерпретируется в часовом поясе профиля; бизнес-время сохраняется в UTC."
         ),
         InlineKeyboardMarkup(
             inline_keyboard=[

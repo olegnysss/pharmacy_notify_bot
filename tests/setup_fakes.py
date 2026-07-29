@@ -119,6 +119,7 @@ class InMemorySetupRepository:
         *,
         expected_generation: int,
         now: datetime,
+        max_active_subscriptions: int = 20,
     ) -> tuple[SubscriptionSetupDraft, Subscription] | None:
         draft = self.drafts.get(user_id)
         if draft is None:

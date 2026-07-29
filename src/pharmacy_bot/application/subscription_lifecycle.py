@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime, time, timedelta
 from enum import StrEnum
 from typing import Protocol
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pharmacy_bot.application.onboarding import OnboardingResult, OnboardingService, OnboardingView
 from pharmacy_bot.application.subscription_setup import LocationResolution, LocationResolver
@@ -26,6 +26,7 @@ from pharmacy_bot.domain.subscription_setup import (
     Subscription,
     SubscriptionStatus,
 )
+from pharmacy_bot.domain.user_settings import UserPreferences
 
 
 class LifecycleView(StrEnum):
@@ -134,6 +135,10 @@ class ConfigurationValidator(Protocol):
     async def can_resume(self, subscription: Subscription) -> bool: ...
 
 
+class PreferencesReader(Protocol):
+    async def get_or_create(self, user_id: int) -> UserPreferences: ...
+
+
 class Clock(Protocol):
     def now(self) -> datetime: ...
 
@@ -157,6 +162,8 @@ class SubscriptionLifecycleService:
         max_radius_meters: int,
         location_min_length: int,
         location_max_length: int,
+        preferences: PreferencesReader | None = None,
+        max_sources_per_subscription: int = 10,
         timezone_name: str = "Europe/Moscow",
         clock: Clock | None = None,
     ) -> None:
@@ -170,6 +177,8 @@ class SubscriptionLifecycleService:
         self._max_radius = max_radius_meters
         self._location_min = location_min_length
         self._location_max = location_max_length
+        self._preferences = preferences
+        self._max_sources_per_subscription = max_sources_per_subscription
         self._timezone = ZoneInfo(timezone_name)
         self._clock = clock or SystemClock()
 
@@ -400,6 +409,13 @@ class SubscriptionLifecycleService:
                 error="Источник недоступен.",
             )
         selected = set(draft.selected_source_codes)
+        if source.code not in selected and len(selected) >= self._max_sources_per_subscription:
+            return LifecycleResult(
+                LifecycleView.INPUT_ERROR,
+                onboarding,
+                draft=draft,
+                error=f"Можно выбрать не более {self._max_sources_per_subscription} источников.",
+            )
         selected.symmetric_difference_update({source.code})
         return await self._save(
             onboarding,
@@ -425,6 +441,13 @@ class SubscriptionLifecycleService:
                 onboarding,
                 draft=draft,
                 error="Выберите хотя бы один работающий источник.",
+            )
+        if len(draft.selected_source_codes) > self._max_sources_per_subscription:
+            return LifecycleResult(
+                LifecycleView.INPUT_ERROR,
+                onboarding,
+                draft=draft,
+                error=f"Можно выбрать не более {self._max_sources_per_subscription} источников.",
             )
         return await self._save(
             onboarding,
@@ -558,6 +581,13 @@ class SubscriptionLifecycleService:
             )
         if draft.status is not EditStatus.REVIEW or draft.generation != generation:
             return LifecycleResult(LifecycleView.STALE, onboarding, draft=draft)
+        if len(draft.selected_source_codes) > self._max_sources_per_subscription:
+            return LifecycleResult(
+                LifecycleView.INPUT_ERROR,
+                onboarding,
+                draft=draft,
+                error=f"Можно выбрать не более {self._max_sources_per_subscription} источников.",
+            )
         transition = await self._repository.apply_edit(
             onboarding.user.id,
             expected_generation=generation,
@@ -791,7 +821,14 @@ class SubscriptionLifecycleService:
                 draft=draft,
                 error="Введите дату в формате ДД.ММ.ГГГГ.",
             )
-        ends_at = datetime.combine(value, time(23, 59, 59), tzinfo=self._timezone).astimezone(UTC)
+        timezone = self._timezone
+        if self._preferences is not None:
+            preferences = await self._preferences.get_or_create(onboarding.user.id)
+            try:
+                timezone = ZoneInfo(preferences.timezone_name)
+            except ZoneInfoNotFoundError:
+                timezone = ZoneInfo("Europe/Moscow")
+        ends_at = datetime.combine(value, time(23, 59, 59), tzinfo=timezone).astimezone(UTC)
         if ends_at <= self._clock.now():
             return LifecycleResult(
                 LifecycleView.INPUT_ERROR,
