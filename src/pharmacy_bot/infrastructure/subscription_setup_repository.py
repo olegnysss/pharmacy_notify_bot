@@ -4,11 +4,12 @@ from datetime import datetime
 from typing import ClassVar, cast
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from pharmacy_bot.domain.subscription_setup import (
+    ActiveSubscriptionLimitReached,
     AvailabilityState,
     CompletionMode,
     LocationCandidate,
@@ -25,6 +26,7 @@ from pharmacy_bot.domain.subscription_setup import (
 from pharmacy_bot.infrastructure.models import (
     SubscriptionModel,
     SubscriptionSetupDraftModel,
+    UserModel,
 )
 
 
@@ -120,6 +122,7 @@ class SqlAlchemySubscriptionSetupRepository:
         *,
         expected_generation: int,
         now: datetime,
+        max_active_subscriptions: int = 20,
     ) -> tuple[SubscriptionSetupDraft, Subscription] | None:
         async with self._session_factory.begin() as session:
             model = await self._get_locked(session, user_id)
@@ -128,6 +131,19 @@ class SqlAlchemySubscriptionSetupRepository:
             existing = await self._subscription_by_key(session, model.idempotency_key)
             if existing is not None:
                 return self._snapshot(model, existing.id), self._subscription_snapshot(existing)
+            await session.scalar(
+                select(UserModel.id).where(UserModel.id == user_id).with_for_update()
+            )
+            active_count = await session.scalar(
+                select(func.count())
+                .select_from(SubscriptionModel)
+                .where(
+                    SubscriptionModel.user_id == user_id,
+                    SubscriptionModel.status == SubscriptionStatus.ACTIVE.value,
+                )
+            )
+            if int(active_count or 0) >= max_active_subscriptions:
+                raise ActiveSubscriptionLimitReached
             if (
                 model.generation != expected_generation
                 or SetupStatus(model.status) is not SetupStatus.REVIEW

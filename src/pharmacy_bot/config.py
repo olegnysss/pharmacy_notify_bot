@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     monitoring_max_radius_meters: int = Field(default=25000, ge=1000, le=500000)
     subscription_results_page_size: int = Field(default=5, ge=1, le=8)
     manual_check_cooldown_seconds: int = Field(default=300, ge=30, le=86400)
+    max_active_subscriptions: int = Field(default=20, ge=1, le=1000)
+    max_sources_per_subscription: int = Field(default=10, ge=1, le=100)
+    max_points_per_notification: int = Field(default=20, ge=1, le=100)
 
     @field_validator("terms_url", "privacy_url")
     @classmethod

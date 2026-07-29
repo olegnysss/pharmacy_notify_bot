@@ -38,3 +38,9 @@ class LifecycleCallback(CallbackData, prefix="lifecycle"):
     subscription_id: int
     generation: int
     value: int
+
+
+class SettingsCallback(CallbackData, prefix="prefs"):
+    action: str
+    generation: int
+    value: int

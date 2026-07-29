@@ -9,6 +9,7 @@ from sqlalchemy import delete, func, select
 
 from pharmacy_bot.domain.onboarding import TelegramIdentity
 from pharmacy_bot.domain.subscription_setup import (
+    ActiveSubscriptionLimitReached,
     AvailabilityState,
     CompletionMode,
     LocationCandidate,
@@ -128,5 +129,23 @@ async def test_postgres_confirmation_is_idempotent_and_initial_state_is_pending(
         )
         assert next_draft.status is SetupStatus.CHOOSE_LOCATION
         assert next_draft.idempotency_key != saved.idempotency_key
+        next_review = replace(
+            review,
+            id=next_draft.id,
+            generation=next_draft.generation,
+            idempotency_key=next_draft.idempotency_key,
+        )
+        next_saved = await repository.save(
+            next_review,
+            expected_generation=next_draft.generation,
+        )
+        assert next_saved
+        with pytest.raises(ActiveSubscriptionLimitReached):
+            await repository.create_subscription(
+                user.id,
+                expected_generation=next_saved.generation,
+                now=now,
+                max_active_subscriptions=1,
+            )
     finally:
         await engine.dispose()

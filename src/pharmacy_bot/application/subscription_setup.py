@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime, time, timedelta
 from enum import StrEnum
 from typing import Protocol
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pharmacy_bot.application.onboarding import (
     OnboardingResult,
@@ -15,6 +15,7 @@ from pharmacy_bot.application.onboarding import (
 from pharmacy_bot.domain.onboarding import TelegramIdentity
 from pharmacy_bot.domain.product_selection import ProductDraft, ProductDraftStatus
 from pharmacy_bot.domain.subscription_setup import (
+    ActiveSubscriptionLimitReached,
     CompletionMode,
     LocationCandidate,
     LocationConfidence,
@@ -25,6 +26,7 @@ from pharmacy_bot.domain.subscription_setup import (
     Subscription,
     SubscriptionSetupDraft,
 )
+from pharmacy_bot.domain.user_settings import Usage, UserPreferences
 
 
 class SetupView(StrEnum):
@@ -44,6 +46,7 @@ class SetupView(StrEnum):
     INPUT_ERROR = "input_error"
     TEMPORARY_ERROR = "temporary_error"
     STALE = "stale"
+    QUOTA_EXCEEDED = "quota_exceeded"
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +93,7 @@ class SetupRepository(Protocol):
         *,
         expected_generation: int,
         now: datetime,
+        max_active_subscriptions: int = 20,
     ) -> tuple[SubscriptionSetupDraft, Subscription] | None: ...
 
 
@@ -107,6 +111,12 @@ class SourceCapabilities(Protocol):
         product: ProductSnapshot,
         location: LocationCandidate,
     ) -> tuple[SourceOption, ...]: ...
+
+
+class PreferencesReader(Protocol):
+    async def get_or_create(self, user_id: int) -> UserPreferences: ...
+
+    async def usage(self, user_id: int, max_active: int) -> Usage: ...
 
 
 class Clock(Protocol):
@@ -132,6 +142,9 @@ class SubscriptionSetupService:
         location_max_length: int,
         min_radius_meters: int,
         max_radius_meters: int,
+        preferences: PreferencesReader | None = None,
+        max_active_subscriptions: int = 20,
+        max_sources_per_subscription: int = 10,
         timezone_name: str = "Europe/Moscow",
         clock: Clock | None = None,
     ) -> None:
@@ -145,6 +158,9 @@ class SubscriptionSetupService:
         self._location_max_length = location_max_length
         self._min_radius = min_radius_meters
         self._max_radius = max_radius_meters
+        self._preferences = preferences
+        self._max_active_subscriptions = max_active_subscriptions
+        self._max_sources_per_subscription = max_sources_per_subscription
         self._timezone = ZoneInfo(timezone_name)
         self._clock = clock or SystemClock()
 
@@ -152,6 +168,21 @@ class SubscriptionSetupService:
         onboarding = await self._onboarding.start(identity)
         if onboarding.view is not OnboardingView.MAIN_MENU:
             return SetupResult(SetupView.ONBOARDING, onboarding)
+        if self._preferences is not None:
+            usage = await self._preferences.usage(
+                onboarding.user.id,
+                self._max_active_subscriptions,
+            )
+            if usage.active_subscriptions >= usage.max_active_subscriptions:
+                return SetupResult(
+                    SetupView.QUOTA_EXCEEDED,
+                    onboarding,
+                    error=(
+                        f"Достигнут лимит активных подписок: "
+                        f"{usage.active_subscriptions} из {usage.max_active_subscriptions}. "
+                        "Приостановите или удалите ненужную подписку."
+                    ),
+                )
         product_draft = await self._product_drafts.get(onboarding.user.id)
         if (
             product_draft is None
@@ -177,6 +208,13 @@ class SubscriptionSetupService:
             now=now,
             expires_at=now + self._draft_ttl,
         )
+        if (
+            self._preferences is not None
+            and draft.status is SetupStatus.CHOOSE_LOCATION
+            and draft.location is None
+        ):
+            preferences = await self._preferences.get_or_create(onboarding.user.id)
+            draft = await self._apply_defaults(draft, preferences)
         return self._from_draft(onboarding, draft)
 
     async def accepts_text(self, identity: TelegramIdentity) -> bool:
@@ -345,7 +383,9 @@ class SubscriptionSetupService:
             )
         sources = await self._sources.available_sources(draft.product, draft.location)
         sources = tuple(replace(item, ordinal=index) for index, item in enumerate(sources))
-        available_codes = tuple(item.code for item in sources if item.available)
+        available_codes = tuple(item.code for item in sources if item.available)[
+            : self._max_sources_per_subscription
+        ]
         updated = replace(
             draft,
             status=SetupStatus.CHOOSE_SOURCES,
@@ -378,6 +418,13 @@ class SubscriptionSetupService:
         selected = set(draft.selected_source_codes)
         if source.code in selected:
             selected.remove(source.code)
+        elif len(selected) >= self._max_sources_per_subscription:
+            return SetupResult(
+                SetupView.INPUT_ERROR,
+                onboarding,
+                draft,
+                error=f"Можно выбрать не более {self._max_sources_per_subscription} источников.",
+            )
         else:
             selected.add(source.code)
         updated = replace(draft, selected_source_codes=tuple(sorted(selected)))
@@ -397,6 +444,13 @@ class SubscriptionSetupService:
                 onboarding,
                 draft,
                 error="Выберите хотя бы один работающий источник.",
+            )
+        if len(draft.selected_source_codes) > self._max_sources_per_subscription:
+            return SetupResult(
+                SetupView.INPUT_ERROR,
+                onboarding,
+                draft,
+                error=f"Можно выбрать не более {self._max_sources_per_subscription} источников.",
             )
         return await self._save(
             onboarding,
@@ -538,12 +592,29 @@ class SubscriptionSetupService:
                 onboarding.user.id,
                 expected_generation=draft.generation,
                 now=self._clock.now(),
+                max_active_subscriptions=self._max_active_subscriptions,
             )
             if created is None:
                 return SetupResult(SetupView.STALE, onboarding, draft)
             return SetupResult(SetupView.CREATED, onboarding, *created)
         if draft.status is not SetupStatus.REVIEW or draft.generation != generation:
             return SetupResult(SetupView.STALE, onboarding, draft)
+        if self._preferences is not None:
+            usage = await self._preferences.usage(
+                onboarding.user.id,
+                self._max_active_subscriptions,
+            )
+            if usage.active_subscriptions >= usage.max_active_subscriptions:
+                return SetupResult(
+                    SetupView.QUOTA_EXCEEDED,
+                    onboarding,
+                    draft,
+                    error=(
+                        f"Достигнут лимит активных подписок: "
+                        f"{usage.active_subscriptions} из {usage.max_active_subscriptions}. "
+                        "Приостановите или удалите ненужную подписку; черновик сохранён."
+                    ),
+                )
         if not self._is_complete(draft):
             return SetupResult(
                 SetupView.INPUT_ERROR,
@@ -551,11 +622,24 @@ class SubscriptionSetupService:
                 draft,
                 error="Черновик неполон или выбранные источники больше недоступны.",
             )
-        created = await self._repository.create_subscription(
-            onboarding.user.id,
-            expected_generation=generation,
-            now=self._clock.now(),
-        )
+        try:
+            created = await self._repository.create_subscription(
+                onboarding.user.id,
+                expected_generation=generation,
+                now=self._clock.now(),
+                max_active_subscriptions=self._max_active_subscriptions,
+            )
+        except ActiveSubscriptionLimitReached:
+            return SetupResult(
+                SetupView.QUOTA_EXCEEDED,
+                onboarding,
+                draft,
+                error=(
+                    f"Достигнут лимит активных подписок "
+                    f"({self._max_active_subscriptions}). Приостановите или удалите "
+                    "ненужную подписку; черновик сохранён."
+                ),
+            )
         if created is None:
             return SetupResult(SetupView.STALE, onboarding, draft)
         return SetupResult(SetupView.CREATED, onboarding, *created)
@@ -597,7 +681,14 @@ class SubscriptionSetupService:
                 draft,
                 error="Введите дату в формате ДД.ММ.ГГГГ.",
             )
-        end_local = datetime.combine(local_date, time(23, 59, 59), tzinfo=self._timezone)
+        timezone = self._timezone
+        if self._preferences is not None:
+            preferences = await self._preferences.get_or_create(onboarding.user.id)
+            try:
+                timezone = ZoneInfo(preferences.timezone_name)
+            except ZoneInfoNotFoundError:
+                timezone = ZoneInfo("Europe/Moscow")
+        end_local = datetime.combine(local_date, time(23, 59, 59), tzinfo=timezone)
         ends_at = end_local.astimezone(UTC)
         if ends_at <= self._clock.now():
             return SetupResult(
@@ -650,17 +741,69 @@ class SubscriptionSetupService:
             return SetupResult(SetupView.STALE, onboarding, draft)
         return self._from_draft(onboarding, saved)
 
-    @staticmethod
-    def _is_complete(draft: SubscriptionSetupDraft) -> bool:
+    def _is_complete(self, draft: SubscriptionSetupDraft) -> bool:
         active = {item.code for item in draft.available_sources if item.available}
         return bool(
             draft.location
             and draft.radius_meters
             and draft.completion_mode
             and draft.selected_source_codes
+            and len(draft.selected_source_codes) <= self._max_sources_per_subscription
             and set(draft.selected_source_codes) <= active
             and (draft.completion_mode is not CompletionMode.UNTIL_DATE or draft.ends_at)
         )
+
+    async def _apply_defaults(
+        self,
+        draft: SubscriptionSetupDraft,
+        preferences: UserPreferences,
+    ) -> SubscriptionSetupDraft:
+        if preferences.default_location is None or preferences.default_radius_meters is None:
+            return draft
+        if not (self._min_radius <= preferences.default_radius_meters <= self._max_radius):
+            return draft
+        sources = await self._sources.available_sources(
+            draft.product,
+            preferences.default_location,
+        )
+        sources = tuple(replace(item, ordinal=index) for index, item in enumerate(sources))
+        active = {item.code for item in sources if item.available}
+        selected = tuple(code for code in preferences.default_source_codes if code in active)[
+            : self._max_sources_per_subscription
+        ]
+        selected_options = [item for item in sources if item.code in selected]
+        filters = replace(
+            preferences.filters,
+            notify_low_stock=(
+                preferences.filters.notify_low_stock
+                and any(item.supports_low_stock for item in selected_options)
+            ),
+            notify_orderable=(
+                preferences.filters.notify_orderable
+                and any(item.supports_orderable for item in selected_options)
+            ),
+            include_price=(
+                preferences.filters.include_price
+                and any(item.supports_price for item in selected_options)
+            ),
+        )
+        updated = replace(
+            draft,
+            status=SetupStatus.REVIEW if selected else SetupStatus.CHOOSE_SOURCES,
+            location_mode=preferences.default_location.kind,
+            location_candidates=(preferences.default_location,),
+            location=preferences.default_location,
+            radius_meters=preferences.default_radius_meters,
+            available_sources=sources,
+            selected_source_codes=selected,
+            filters=filters,
+            completion_mode=preferences.completion_mode,
+        )
+        saved = await self._repository.save(
+            updated,
+            expected_generation=draft.generation,
+        )
+        return saved or draft
 
     @staticmethod
     def _normalize(value: str) -> str:

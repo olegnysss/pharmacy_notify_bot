@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, time
 
 from sqlalchemy import (
     JSON,
@@ -12,6 +12,7 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
+    Time,
     UniqueConstraint,
     func,
 )
@@ -62,6 +63,76 @@ class UserModel(Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    preferences: Mapped[UserPreferencesModel | None] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+
+class UserPreferencesModel(Base):
+    __tablename__ = "user_preferences"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    generation: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    language: Mapped[str] = mapped_column(String(16), nullable=False, default="ru")
+    timezone_name: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="Europe/Moscow",
+    )
+    default_location: Mapped[dict[str, object] | None] = mapped_column(JSON)
+    default_radius_meters: Mapped[int | None] = mapped_column(Integer)
+    default_source_codes: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+    )
+    notify_low_stock: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    notify_orderable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    include_price: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    completion_mode: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="continue",
+    )
+    quiet_hours_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    quiet_hours_start: Mapped[time] = mapped_column(
+        Time,
+        nullable=False,
+        default=lambda: time(22, 0),
+    )
+    quiet_hours_end: Mapped[time] = mapped_column(
+        Time,
+        nullable=False,
+        default=lambda: time(8, 0),
+    )
+    digest_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    max_points_per_message: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    editor_status: Mapped[str] = mapped_column(String(32), nullable=False, default="idle")
+    editor_location_mode: Mapped[str | None] = mapped_column(String(32))
+    editor_location_candidates: Mapped[list[dict[str, object]]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    user: Mapped[UserModel] = relationship(back_populates="preferences")
 
 
 class ConsentDecisionModel(Base):

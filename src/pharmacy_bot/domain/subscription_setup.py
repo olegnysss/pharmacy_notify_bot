@@ -55,6 +55,10 @@ class AvailabilityState(StrEnum):
     STALE = "stale"
 
 
+class ActiveSubscriptionLimitReached(Exception):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class ProductSnapshot:
     candidate_key: str

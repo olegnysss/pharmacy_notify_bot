@@ -225,7 +225,7 @@ def _completion(result: LifecycleResult) -> RenderedMessage:
 def _end_date(result: LifecycleResult) -> RenderedMessage:
     draft = _draft(result)
     return RenderedMessage(
-        "Введите будущую дату в формате ДД.ММ.ГГГГ (Europe/Moscow).",
+        "Введите будущую дату в формате ДД.ММ.ГГГГ (часовой пояс профиля).",
         InlineKeyboardMarkup(inline_keyboard=[[_button("Другой режим", "block", draft, 4)]]),
     )
 
