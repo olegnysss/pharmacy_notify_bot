@@ -541,6 +541,35 @@ class LocationScopeVersionModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class GeocodingSessionModel(Base):
+    __tablename__ = "geocoding_sessions"
+    __table_args__ = (
+        UniqueConstraint("user_id", "generation", name="uq_geocoding_sessions_user_generation"),
+        CheckConstraint(
+            "status IN ('exact', 'ambiguous', 'insufficient', 'confirmed')",
+            name="ck_geocoding_sessions_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    query_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    locale: Mapped[str] = mapped_column(String(16), nullable=False)
+    region_hint_hash: Mapped[str | None] = mapped_column(String(64))
+    provider_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider_data_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    candidates: Mapped[list[dict[str, object]]] = mapped_column(JSON, nullable=False)
+    selected_candidate_id: Mapped[str | None] = mapped_column(String(24))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class ProductSelectionDraftModel(Base):
     __tablename__ = "product_selection_drafts"
 

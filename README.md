@@ -45,6 +45,10 @@ Story [#80](https://github.com/olegnysss/pharmacy_notify_bot/issues/80) ввод
 географические scope для страны, региона, города, района, адреса, радиуса, списка аптек и
 online-региона. Scope имеет детерминированный fingerprint и версии, а eligibility возвращает
 `eligible/ineligible/unknown`; точка без координат никогда не проходит radius-фильтр.
+Story [#81](https://github.com/olegnysss/pharmacy_notify_bot/issues/81) добавляет заменяемый
+geocoder port и bounded provider DTO. Результат классифицируется как exact/ambiguous/insufficient,
+а подтверждение хранится без raw query и привязано к внутреннему user ID, generation и TTL;
+provenance включает provider, external result и data version.
 
 Команды личного чата:
 
