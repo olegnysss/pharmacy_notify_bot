@@ -320,6 +320,11 @@ class SourceProductModel(Base):
             "status IN ('active', 'discontinued', 'unavailable')",
             name="ck_source_products_status",
         ),
+        CheckConstraint(
+            "monitoring_eligibility IN "
+            "('pending_revalidation', 'eligible', 'quarantined', 'awaiting_fresh_check')",
+            name="ck_source_products_monitoring_eligibility",
+        ),
         Index("ix_source_products_search", "id", "status"),
     )
 
@@ -337,6 +342,16 @@ class SourceProductModel(Base):
     )
     canonical_product_version: Mapped[int | None] = mapped_column(Integer)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    monitoring_eligibility: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="pending_revalidation",
+    )
+    quarantine_reason: Mapped[str | None] = mapped_column(String(128))
+    quarantined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_revalidated_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_revalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    fresh_check_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -424,6 +439,43 @@ class MappingDecisionModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SourceProductRevalidationModel(Base):
+    __tablename__ = "source_product_revalidations"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_product_id",
+            "source_version",
+            "algorithm_version",
+            name="uq_source_revalidations_product_version_algorithm",
+        ),
+        Index(
+            "ix_source_revalidations_product_created",
+            "source_product_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source_product_id: Mapped[int] = mapped_column(
+        ForeignKey("source_products.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    previous_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    drift_class: Mapped[str] = mapped_column(String(32), nullable=False)
+    match_level: Mapped[str] = mapped_column(String(32), nullable=False)
+    match_confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    algorithm_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    match_algorithm_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    action: Mapped[str] = mapped_column(String(32), nullable=False)
+    safe_evidence: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    actor_type: Mapped[str | None] = mapped_column(String(32))
+    actor_internal_id: Mapped[int | None] = mapped_column(BigInteger)
+    reason_code: Mapped[str | None] = mapped_column(String(128))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class ProductSelectionDraftModel(Base):

@@ -37,6 +37,10 @@ Story [#68](https://github.com/olegnysss/pharmacy_notify_bot/issues/68) доба
 matching: critical mismatch проверяется до scoring и trusted ID, а `probable`/`candidate`
 не разрешают автоматическое событие без активного подтверждения. Подтверждения ограничены
 user/source/global scope, защищены idempotency key и отзываются без удаления аудита.
+Story [#72](https://github.com/olegnysss/pharmacy_notify_bot/issues/72) защищает мониторинг
+от drift карточки: изменение переводит предложение в revalidation, critical/incomplete drift
+карантинится, а выпуск требует exact/confirmed mapping и новой проверки. Delivery guard
+сверяет версию наблюдения непосредственно перед событием, не затрагивая другие предложения.
 
 Команды личного чата:
 

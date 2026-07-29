@@ -75,6 +75,11 @@ async def test_source_product_upsert_is_idempotent_versioned_and_searchable(
             payload(dosage="20 мг", name="Тест обновлённый"),
             now=now + timedelta(minutes=1),
         )
+        stale = await service.ingest(
+            "test_source",
+            payload(dosage="30 мг", name="Устаревший ответ"),
+            now=now - timedelta(minutes=1),
+        )
         page = await service.search("тест", page_size=1)
 
         async with session_factory() as session:
@@ -94,6 +99,8 @@ async def test_source_product_upsert_is_idempotent_versioned_and_searchable(
         assert first.id == repeated.id == changed.id
         assert first.version == repeated.version == 1
         assert changed.version == 2
+        assert stale.version == 2
+        assert stale.attributes.dosage == "20 mg"
         assert changed.first_seen_at == now
         assert changed.last_seen_at == now + timedelta(minutes=1)
         assert product_count == 1
