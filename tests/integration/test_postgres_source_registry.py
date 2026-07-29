@@ -20,7 +20,11 @@ from pharmacy_bot.domain.source_registry import (
     StaleSourceVersion,
 )
 from pharmacy_bot.infrastructure.database import create_engine, create_session_factory
-from pharmacy_bot.infrastructure.models import SourceModel, SourceVersionModel
+from pharmacy_bot.infrastructure.models import (
+    AdapterIngestionReceiptModel,
+    SourceModel,
+    SourceVersionModel,
+)
 from pharmacy_bot.infrastructure.source_registry_repository import (
     SqlAlchemySourceRegistryRepository,
 )
@@ -60,6 +64,7 @@ async def test_registry_is_idempotent_versioned_and_audited(database_url: str) -
     now = datetime(2026, 7, 29, 14, tzinfo=UTC)
     try:
         async with session_factory.begin() as session:
+            await session.execute(delete(AdapterIngestionReceiptModel))
             await session.execute(delete(SourceVersionModel))
             await session.execute(delete(SourceModel))
 
