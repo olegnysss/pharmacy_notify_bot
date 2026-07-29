@@ -49,6 +49,10 @@ Story [#81](https://github.com/olegnysss/pharmacy_notify_bot/issues/81) доба
 geocoder port и bounded provider DTO. Результат классифицируется как exact/ambiguous/insufficient,
 а подтверждение хранится без raw query и привязано к внутреннему user ID, generation и TTL;
 provenance включает provider, external result и data version.
+Story [#82](https://github.com/olegnysss/pharmacy_notify_bot/issues/82) вводит канонические
+`Pharmacy` и версионированные `SourcePharmacy`. Дедупликация учитывает сеть, адрес, координаты
+и trusted ID, сомнительные связи требуют операторского решения, а radius search исключает
+точки без координат и использует стабильный cursor `(distance, pharmacy_id)`.
 
 Команды личного чата:
 

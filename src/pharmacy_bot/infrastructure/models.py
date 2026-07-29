@@ -570,6 +570,179 @@ class GeocodingSessionModel(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class PharmacyModel(Base):
+    __tablename__ = "pharmacies"
+    __table_args__ = (
+        UniqueConstraint("fingerprint", name="uq_pharmacies_fingerprint"),
+        CheckConstraint("version > 0", name="ck_pharmacies_version_positive"),
+        CheckConstraint(
+            "kind IN ('pharmacy', 'pickup_point')",
+            name="ck_pharmacies_kind",
+        ),
+        CheckConstraint(
+            "status IN ('active', 'temporarily_closed', 'retired')",
+            name="ck_pharmacies_status",
+        ),
+        CheckConstraint(
+            "latitude IS NULL OR (latitude >= -90 AND latitude <= 90)",
+            name="ck_pharmacies_latitude",
+        ),
+        CheckConstraint(
+            "longitude IS NULL OR (longitude >= -180 AND longitude <= 180)",
+            name="ck_pharmacies_longitude",
+        ),
+        Index("ix_pharmacies_coordinates_status", "latitude", "longitude", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    normalized_address: Mapped[str] = mapped_column(String(512), nullable=False)
+    network_key: Mapped[str | None] = mapped_column(String(128))
+    latitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    trusted_identifier: Mapped[str | None] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class PharmacyVersionModel(Base):
+    __tablename__ = "pharmacy_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "pharmacy_id",
+            "version",
+            name="uq_pharmacy_versions_pharmacy_version",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    pharmacy_id: Mapped[int] = mapped_column(
+        ForeignKey("pharmacies.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    safe_snapshot: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class SourcePharmacyModel(Base):
+    __tablename__ = "source_pharmacies"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_code",
+            "external_id",
+            name="uq_source_pharmacies_source_external",
+        ),
+        CheckConstraint("version > 0", name="ck_source_pharmacies_version_positive"),
+        CheckConstraint(
+            "mapping_version >= 0",
+            name="ck_source_pharmacies_mapping_version_nonnegative",
+        ),
+        CheckConstraint(
+            "kind IN ('pharmacy', 'pickup_point')",
+            name="ck_source_pharmacies_kind",
+        ),
+        CheckConstraint(
+            "status IN ('active', 'temporarily_closed', 'retired')",
+            name="ck_source_pharmacies_status",
+        ),
+        CheckConstraint(
+            "latitude IS NULL OR (latitude >= -90 AND latitude <= 90)",
+            name="ck_source_pharmacies_latitude",
+        ),
+        CheckConstraint(
+            "longitude IS NULL OR (longitude >= -180 AND longitude <= 180)",
+            name="ck_source_pharmacies_longitude",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    external_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    normalized_address: Mapped[str] = mapped_column(String(512), nullable=False)
+    network_key: Mapped[str | None] = mapped_column(String(128))
+    latitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    trusted_identifier: Mapped[str | None] = mapped_column(String(128))
+    canonical_pharmacy_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pharmacies.id", ondelete="SET NULL"),
+    )
+    mapping_level: Mapped[str | None] = mapped_column(String(32))
+    mapping_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class SourcePharmacyVersionModel(Base):
+    __tablename__ = "source_pharmacy_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_pharmacy_id",
+            "version",
+            name="uq_source_pharmacy_versions_source_version",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source_pharmacy_id: Mapped[int] = mapped_column(
+        ForeignKey("source_pharmacies.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    safe_snapshot: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    changed_fields: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class PharmacyMappingDecisionModel(Base):
+    __tablename__ = "pharmacy_mapping_decisions"
+    __table_args__ = (
+        UniqueConstraint(
+            "actor_internal_id",
+            "idempotency_key",
+            name="uq_pharmacy_mapping_actor_idempotency",
+        ),
+        Index(
+            "ix_pharmacy_mapping_source_created",
+            "source_pharmacy_id",
+            "created_at",
+        ),
+        CheckConstraint(
+            "action IN ('confirm', 'revoke')",
+            name="ck_pharmacy_mapping_decisions_action",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source_pharmacy_id: Mapped[int] = mapped_column(
+        ForeignKey("source_pharmacies.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    canonical_pharmacy_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pharmacies.id", ondelete="SET NULL"),
+    )
+    action: Mapped[str] = mapped_column(String(16), nullable=False)
+    match_level: Mapped[str | None] = mapped_column(String(32))
+    reasons: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    algorithm_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    mapping_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    actor_internal_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class ProductSelectionDraftModel(Base):
     __tablename__ = "product_selection_drafts"
 
