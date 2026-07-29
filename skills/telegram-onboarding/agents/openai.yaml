@@ -1,0 +1,4 @@
+interface:
+  display_name: "Telegram Onboarding"
+  short_description: "Implement resilient Telegram onboarding flows"
+  default_prompt: "Use $telegram-onboarding to implement or review a Telegram onboarding and consent flow."
