@@ -743,6 +743,56 @@ class PharmacyMappingDecisionModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class FulfillmentRecordModel(Base):
+    __tablename__ = "fulfillment_records"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_product_id",
+            "fulfillment_type",
+            "reference_key",
+            name="uq_fulfillment_source_type_reference",
+        ),
+        CheckConstraint("version > 0", name="ck_fulfillment_records_version_positive"),
+        CheckConstraint(
+            "fulfillment_type IN ('physical_stock', 'pickup', 'delivery', 'online_unknown')",
+            name="ck_fulfillment_records_type",
+        ),
+        CheckConstraint(
+            "(fulfillment_type IN ('physical_stock', 'pickup') "
+            "AND pharmacy_id IS NOT NULL AND latitude IS NOT NULL AND longitude IS NOT NULL "
+            "AND delivery_region_key IS NULL AND delivery_city_key IS NULL) "
+            "OR (fulfillment_type = 'delivery' AND pharmacy_id IS NULL "
+            "AND latitude IS NULL AND longitude IS NULL "
+            "AND (delivery_region_key IS NOT NULL OR delivery_city_key IS NOT NULL)) "
+            "OR (fulfillment_type = 'online_unknown' AND pharmacy_id IS NULL "
+            "AND latitude IS NULL AND longitude IS NULL "
+            "AND delivery_region_key IS NULL AND delivery_city_key IS NULL)",
+            name="ck_fulfillment_records_references",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source_product_id: Mapped[int] = mapped_column(
+        ForeignKey("source_products.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    fulfillment_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    pharmacy_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pharmacies.id", ondelete="RESTRICT"),
+    )
+    latitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    delivery_region_key: Mapped[str | None] = mapped_column(String(128))
+    delivery_city_key: Mapped[str | None] = mapped_column(String(128))
+    reference_key: Mapped[str] = mapped_column(String(320), nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class ProductSelectionDraftModel(Base):
     __tablename__ = "product_selection_drafts"
 
