@@ -62,6 +62,12 @@ Story [#100](https://github.com/olegnysss/pharmacy_notify_bot/issues/100) доб
 лимиты свежести, запросов, параллелизма и кэша. Любая операция разрешается только активному
 источнику с явной capability и статусом legal `allowed`; изменения конфигурации сохраняются
 в безопасном аудите без credentials и требуют ожидаемую версию.
+Story [#101](https://github.com/olegnysss/pharmacy_notify_bot/issues/101) вводит единый
+защищённый transport: сквозной timeout budget, bounded retry с jitter и capped Retry-After,
+изолированные token bucket, semaphore и circuit breaker для каждого источника. Реальный
+aiohttp wire проверяет TLS, не следует редиректам автоматически и не хранит cookies; policy
+проверяет каждый redirect host, content type и размер streaming-ответа до бизнес-парсинга,
+а диагностика не содержит query, headers или body.
 
 Команды личного чата:
 
