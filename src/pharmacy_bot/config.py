@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Literal
 
-from pydantic import Field, FilePath, HttpUrl, SecretStr, field_validator
+from pydantic import Field, FilePath, HttpUrl, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from pharmacy_bot.application.onboarding import DocumentBundle
@@ -25,6 +26,13 @@ class Settings(BaseSettings):
     privacy_url: HttpUrl
     log_level: str = "INFO"
     extra_ca_cert_path: FilePath | None = None
+    product_query_min_length: int = Field(default=2, ge=1, le=32)
+    product_query_max_length: int = Field(default=160, ge=16, le=512)
+    product_url_max_length: int = Field(default=2048, ge=128, le=4096)
+    product_results_page_size: int = Field(default=5, ge=1, le=8)
+    product_draft_ttl_seconds: int = Field(default=3600, ge=60, le=604800)
+    product_discovery_mode: Literal["unavailable", "demo"] = "unavailable"
+    supported_product_hosts: str = ""
 
     @field_validator("terms_url", "privacy_url")
     @classmethod
@@ -33,12 +41,25 @@ class Settings(BaseSettings):
             raise ValueError("document URL must use HTTPS")
         return value
 
+    @model_validator(mode="after")
+    def validate_product_query_limits(self) -> Settings:
+        if self.product_query_min_length > self.product_query_max_length:
+            raise ValueError("product query minimum cannot exceed maximum")
+        return self
+
     def document_bundle(self) -> DocumentBundle:
         return DocumentBundle(
             terms_version=self.terms_version,
             terms_url=str(self.terms_url),
             privacy_version=self.privacy_version,
             privacy_url=str(self.privacy_url),
+        )
+
+    def product_hosts(self) -> tuple[str, ...]:
+        return tuple(
+            host.strip().lower().rstrip(".")
+            for host in self.supported_product_hosts.split(",")
+            if host.strip()
         )
 
 

@@ -11,3 +11,9 @@ class NavigationCallback(CallbackData, prefix="navigation"):
 
 class SubscriptionCallback(CallbackData, prefix="subscription"):
     action: str
+
+
+class ProductCallback(CallbackData, prefix="product"):
+    action: str
+    generation: int
+    value: int
