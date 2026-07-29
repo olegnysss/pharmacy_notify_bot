@@ -29,6 +29,10 @@ Story [#60](https://github.com/olegnysss/pharmacy_notify_bot/issues/60) ввод
 каталог: клинически значимую identity signature, Decimal-нормализацию дозировок и единиц,
 устойчивые identifiers, provenance и неизменяемые версии идентичности. Предложения аптечных
 источников будут подключены к этой модели следующей story.
+Story [#64](https://github.com/olegnysss/pharmacy_notify_bot/issues/64) добавляет отдельные
+карточки предложений источников: устойчивый ключ `source_code/external_id`, allowlist URL,
+ограниченный типизированный payload, семантический fingerprint, append-only историю изменений
+и стабильную пагинацию поиска с формой, дозировкой и упаковкой.
 
 Команды личного чата:
 
